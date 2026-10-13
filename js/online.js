@@ -59,7 +59,9 @@ const Online = (() => {
           <div class="knoepfe"><button class="btn primaer" id="olLos">${knopf}</button></div>
           <p class="klein" style="margin-top:14px">
             ${m === "anmelden" ? '<a href="#" data-modus="vergessen">Passwort vergessen?</a>' : '<a href="#" data-modus="anmelden">Zurück zur Anmeldung</a>'}
-          </p>`);
+          </p>
+          ${m === "registrieren" ? '<p class="klein">Mit der Registrierung erscheint dein Benutzername in der Bestenliste. Infos in der <a href="datenschutz.html" target="_blank">Datenschutzerklärung</a>.</p>' : ""}
+          <p class="klein"><a href="impressum.html" target="_blank">Impressum</a> · <a href="datenschutz.html" target="_blank">Datenschutz</a></p>`);
         document.querySelectorAll("[data-modus]").forEach((el) => {
           el.onclick = (e) => {
             e.preventDefault();

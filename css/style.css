@@ -204,3 +204,7 @@ body {
   .antworten { grid-template-columns: 1fr; }
   .quiz-karte { padding: 20px; }
 }
+
+/* ============ Fußzeile ============ */
+.fuss { font-size: 12px; color: var(--text2); text-align: center; padding: 4px; background: var(--karte); border-top: 1px solid var(--rand); }
+.fuss a { color: var(--text2); }

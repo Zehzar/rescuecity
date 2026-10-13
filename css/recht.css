@@ -1,0 +1,8 @@
+body { font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; background: #f3f4f6; color: #1c2430; margin: 0; line-height: 1.55; }
+.seite { max-width: 760px; margin: 32px auto; background: #fff; border-radius: 12px; padding: 28px 32px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+h1 { margin-top: 0; color: #c62828; }
+h2 { font-size: 18px; margin-top: 28px; }
+a { color: #c62828; }
+.zurueck { display: inline-block; margin-bottom: 16px; }
+.klein { font-size: 13px; color: #5b6675; }
+@media (max-width: 600px) { .seite { margin: 0; border-radius: 0; padding: 20px 16px; } }

@@ -31,3 +31,7 @@ Der Spielstand wird automatisch im Browser gespeichert.
 - Zugangsdaten stehen in `js/config.js` unter `online`. Leer lassen = Spiel läuft nur lokal.
 - Datenbank einrichten oder aktualisieren: Inhalt von `supabase/setup.sql` im Supabase SQL-Editor ausführen (kann wiederholt werden).
 - In Supabase unter Authentication → URL Configuration: Site URL `http://localhost:8080` (später die echte Web-Adresse).
+
+## Online-Version
+- Das Spiel läuft unter https://rescuecity.netlify.app. Netlify holt sich jede Änderung auf GitHub (Zweig `main`) automatisch und stellt sie nach etwa einer Minute online.
+- `impressum.html` und `datenschutz.html` sind unten im Spiel und im Anmeldefenster verlinkt. Wenn neue Dienste dazukommen (z. B. ein eigener Mail-Anbieter), muss die Datenschutzerklärung ergänzt werden.
