@@ -61,6 +61,7 @@ function serverStandUebernehmen(antwort) {
   (antwort.fertig || []).forEach((f) =>
     toast(`✅ ${esc(f.name)} (${esc(f.wache)}) ist zurück auf der Wache (Status 2): +💶 ${zahl(f.geld)} · +⭐ ${zahl(f.xp)}`)
   );
+  if (antwort.erfolge && antwort.erfolge.length) erfolgeMelden(antwort.erfolge);
   const lvNeu = levelAusXp(antwort.stand.xp);
   if (lvAlt && lvNeu > lvAlt) toast(`🎉 Level ${lvNeu} erreicht!`);
   allesNeuZeichnen();
@@ -131,6 +132,7 @@ function kopfAktualisieren() {
   $("#levelBalken").style.width = `${((p.xp - von) / (bis - von)) * 100}%`;
   $("#spielerLevel").parentElement.title = `${zahl(p.xp - von)} / ${zahl(bis - von)} Punkte bis Level ${lv + 1}`;
   bonusKnopfAktualisieren();
+  erfolgeKnopfAktualisieren();
 }
 
 // ---------- Tägliche Belohnung ----------
@@ -228,11 +230,101 @@ async function bonusAbholen() {
     b = { ...bonusFuerTag(lage.serie + 1), serie: lage.serie + 1 };
     punkteGeben(b.geld, b.xp, "bonus");
     p.bonusLokal = { tag: heuteBerlin(), serie: b.serie };
+    p.stats.serieMax = Math.max(p.stats.serieMax || 0, b.serie);
     speichern();
     allesNeuZeichnen();
   }
   toast(`🎁 Tägliche Belohnung (Tag ${b.serie}): +💶 ${zahl(b.geld)} · +⭐ ${zahl(b.xp)}`);
   bonusDialog(b);
+}
+
+// ---------- Erfolge ----------
+// Online zählt und belohnt der Server, hier wird nur angezeigt. Lokal rechnet der Browser selbst.
+function erfolgeWerte(p) {
+  if (Online.aktiv) return p.werte || {};
+  const fz = p.stationen.reduce((n, w) => n + w.fahrzeuge.length, 0);
+  return {
+    einsaetze: p.stats.einsaetze, transporte: p.stats.transporte || 0, quizRichtig: p.stats.quizRichtig,
+    quizFolge: p.stats.quizFolgeMax || 0, serie: p.stats.serieMax || 0, xp: p.xp,
+    wachen: p.stationen.length, wacheLevel: Math.max(0, ...p.stationen.map((w) => w.level)), fahrzeuge: fz,
+  };
+}
+const erfolgeErreicht = (p) => (Online.aktiv ? p.erfolge : p.erfolgeLokal) || {};
+const erfolgeAktiv = (p) => !!(p && CONFIG.erfolge && (!Online.aktiv || p.werte));
+let erfolgeNeu = 0; // Anzahl seit dem letzten Öffnen des Fensters
+
+function erfolgeMelden(liste) {
+  erfolgeNeu += liste.length;
+  if (liste.length <= 2)
+    liste.forEach((e) =>
+      toast(`🏅 Erfolg freigeschaltet: <b>${e.symbol} ${esc(e.name)}</b> (+💶 ${zahl(e.geld)}${e.xp ? ` · +⭐ ${zahl(e.xp)}` : ""})`)
+    );
+  else {
+    const geld = liste.reduce((s, e) => s + e.geld, 0);
+    toast(`🏅 <b>${liste.length} Erfolge</b> freigeschaltet: +💶 ${zahl(geld)}. Klick oben auf 🏅.`);
+  }
+  erfolgeKnopfAktualisieren();
+}
+
+function erfolgePruefenLokal() {
+  const p = spieler();
+  if (!erfolgeAktiv(p)) return;
+  if (!p.erfolgeLokal) p.erfolgeLokal = {};
+  const w = erfolgeWerte(p);
+  const neu = CONFIG.erfolge.filter((e) => !p.erfolgeLokal[e.key] && (w[e.wert] || 0) >= e.ziel);
+  if (!neu.length) return;
+  neu.forEach((e) => {
+    p.erfolgeLokal[e.key] = Date.now();
+    punkteGeben(e.geld, e.xp, "erfolg");
+  });
+  speichern();
+  erfolgeMelden(neu);
+}
+
+function erfolgeKnopfAktualisieren() {
+  const p = spieler();
+  const knopf = $("#erfolgeKnopf");
+  if (!erfolgeAktiv(p)) return knopf.classList.add("versteckt");
+  const n = Object.keys(erfolgeErreicht(p)).length;
+  knopf.classList.remove("versteckt");
+  knopf.classList.toggle("bereit", erfolgeNeu > 0);
+  knopf.title = `Erfolge: ${n} von ${CONFIG.erfolge.length}`;
+}
+
+function erfolgeDialog() {
+  const p = spieler();
+  const erreicht = erfolgeErreicht(p);
+  const w = erfolgeWerte(p);
+  erfolgeNeu = 0;
+  erfolgeKnopfAktualisieren();
+  // Erreichte zuerst, dann nach Fortschritt
+  const sortiert = [...CONFIG.erfolge].sort(
+    (a, b) => !!erreicht[b.key] - !!erreicht[a.key] || (w[b.wert] || 0) / b.ziel - (w[a.wert] || 0) / a.ziel
+  );
+  const karten = sortiert
+    .map((e) => {
+      const ok = !!erreicht[e.key];
+      const stand = Math.min(w[e.wert] || 0, e.ziel);
+      const anzeige = e.wert === "xp" ? `Level ${levelAusXp(stand)} / ${levelAusXp(e.ziel)}` : `${zahl(stand)} / ${zahl(e.ziel)}`;
+      return `<div class="erfolg ${ok ? "erreicht" : ""}">
+        <div class="erfolg-symbol">${e.symbol}</div>
+        <div class="erfolg-text">
+          <b>${esc(e.name)}</b>
+          <div class="klein">${esc(e.text)}</div>
+          ${ok
+            ? `<div class="klein">✅ Erreicht am ${new Date(erreicht[e.key]).toLocaleDateString("de-DE")}</div>`
+            : `<div class="fortschritt"><div style="width:${(stand / e.ziel) * 100}%"></div></div><div class="klein">${anzeige}</div>`}
+        </div>
+        <div class="erfolg-lohn klein">💶 ${zahl(e.geld)}${e.xp ? `<br>⭐ ${zahl(e.xp)}` : ""}</div>
+      </div>`;
+    })
+    .join("");
+  dialogZeigen(`
+    <h2>🏅 Erfolge</h2>
+    <p class="klein">${Object.keys(erreicht).length} von ${CONFIG.erfolge.length} freigeschaltet. Jeder Erfolg bringt einmalig eine Belohnung.</p>
+    <div class="erfolge-liste">${karten}</div>
+    <div class="knoepfe"><button class="btn" id="erfolgeZu">Schließen</button></div>`);
+  $("#erfolgeZu").onclick = dialogSchliessen;
 }
 
 // ---------- Toasts ----------
@@ -777,6 +869,7 @@ function einsaetzePruefen() {
       if (f.einsatz && f.einsatz.ende <= jetzt) {
         punkteGeben(f.einsatz.geld, f.einsatz.xp, "einsatz");
         p.stats.einsaetze++;
+        if (f.einsatz.kh) p.stats.transporte = (p.stats.transporte || 0) + 1;
         toast(`✅ ${esc(fahrzeugName(f))} (${esc(w.name)}) ist zurück auf der Wache (Status 2): +💶 ${zahl(f.einsatz.geld)} · +⭐ ${zahl(f.einsatz.xp)}`);
         f.einsatz = null;
         geaendert = true;
@@ -1081,11 +1174,13 @@ async function quizAntwort(i) {
       return;
     }
     f.richtig = f.reihenfolge.indexOf(a.korrekt);
-    serverStandUebernehmen({ stand: a.stand });
+    serverStandUebernehmen({ stand: a.stand, erfolge: a.erfolge });
     return quizAuswertung(i, f, knoepfe, a.richtig);
   }
   const p = spieler();
   p.stats.quizGesamt++;
+  p.stats.quizFolge = i === f.richtig ? (p.stats.quizFolge || 0) + 1 : 0;
+  p.stats.quizFolgeMax = Math.max(p.stats.quizFolgeMax || 0, p.stats.quizFolge);
   if (i === f.richtig) {
     p.stats.quizRichtig++;
     punkteGeben(CONFIG.quiz.geldProRichtig, CONFIG.quiz.xpProRichtig, "quiz");
@@ -1173,6 +1268,7 @@ function bereichZeigen(ziel) {
 }
 
 function allesNeuZeichnen() {
+  if (!Online.aktiv) erfolgePruefenLokal();
   kopfAktualisieren();
   markerZeichnen();
   fahrzeugeAufKarte();
@@ -1185,6 +1281,7 @@ async function start() {
   karteStarten();
   document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => bereichZeigen(t.dataset.ziel)));
   $("#bonusKnopf").onclick = () => bonusDialog();
+  $("#erfolgeKnopf").onclick = erfolgeDialog;
   $("#spielerName").onclick = () => (Online.aktiv ? Online.kontoDialog() : profilDialog(false));
 
   if (Online.aktiv) {

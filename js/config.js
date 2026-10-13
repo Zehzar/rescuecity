@@ -123,6 +123,31 @@ const CONFIG = {
     xp: [10, 15, 20, 25, 30, 40, 100],
   },
 
+  // Erfolge: wert = welche Zahl zählt, ziel = ab wann freigeschaltet, geld/xp = einmalige Belohnung.
+  // Online gelten die Werte aus der Supabase-Tabelle regeln (Eintrag "erfolge").
+  erfolge: [
+    {key: "erste_wache", name: "Grundstein", text: "Baue deine erste Rettungswache", symbol: "🏠", wert: "wachen", ziel: 1, geld: 250, xp: 25},
+    {key: "wachen_3", name: "Rettungsdienstbereich", text: "Besitze 3 Rettungswachen", symbol: "🗺️", wert: "wachen", ziel: 3, geld: 1500, xp: 100},
+    {key: "wachen_10", name: "Kreisleitstelle", text: "Besitze 10 Rettungswachen", symbol: "🏢", wert: "wachen", ziel: 10, geld: 10000, xp: 500},
+    {key: "wache_lvl3", name: "Ausgebaut", text: "Baue eine Wache auf Level 3 aus", symbol: "🔧", wert: "wacheLevel", ziel: 3, geld: 1500, xp: 100},
+    {key: "wache_lvl5", name: "Lehrrettungswache", text: "Baue eine Wache auf Level 5 aus", symbol: "🏆", wert: "wacheLevel", ziel: 5, geld: 6000, xp: 300},
+    {key: "fahrzeuge_5", name: "Fuhrpark", text: "Besitze 5 Fahrzeuge", symbol: "🚑", wert: "fahrzeuge", ziel: 5, geld: 1500, xp: 100},
+    {key: "fahrzeuge_20", name: "Großer Fuhrpark", text: "Besitze 20 Fahrzeuge", symbol: "🚒", wert: "fahrzeuge", ziel: 20, geld: 8000, xp: 400},
+    {key: "einsatz_1", name: "Erster Einsatz", text: "Schließe deinen ersten Einsatz ab", symbol: "🚨", wert: "einsaetze", ziel: 1, geld: 250, xp: 25},
+    {key: "einsatz_10", name: "Eingespielt", text: "Schließe 10 Einsätze ab", symbol: "⏱️", wert: "einsaetze", ziel: 10, geld: 750, xp: 50},
+    {key: "einsatz_100", name: "Routinier", text: "Schließe 100 Einsätze ab", symbol: "🎖️", wert: "einsaetze", ziel: 100, geld: 4000, xp: 250},
+    {key: "einsatz_1000", name: "Legende der Leitstelle", text: "Schließe 1.000 Einsätze ab", symbol: "👑", wert: "einsaetze", ziel: 1000, geld: 25000, xp: 1500},
+    {key: "transport_10", name: "Patientenbringer", text: "Bringe 10 Patienten ins Krankenhaus", symbol: "🏥", wert: "transporte", ziel: 10, geld: 1000, xp: 75},
+    {key: "transport_100", name: "Klinik-Stammgast", text: "Bringe 100 Patienten ins Krankenhaus", symbol: "💉", wert: "transporte", ziel: 100, geld: 6000, xp: 300},
+    {key: "quiz_10", name: "Wissbegierig", text: "Beantworte 10 Quizfragen richtig", symbol: "📘", wert: "quizRichtig", ziel: 10, geld: 500, xp: 50},
+    {key: "quiz_100", name: "Wandelndes Lehrbuch", text: "Beantworte 100 Quizfragen richtig", symbol: "🎓", wert: "quizRichtig", ziel: 100, geld: 4000, xp: 250},
+    {key: "quiz_folge_10", name: "Fehlerfrei", text: "Beantworte 10 Quizfragen in Folge richtig", symbol: "🎯", wert: "quizFolge", ziel: 10, geld: 1500, xp: 100},
+    {key: "serie_7", name: "Eine Woche dabei", text: "Hol dir 7 Tage am Stück die tägliche Belohnung", symbol: "📅", wert: "serie", ziel: 7, geld: 1500, xp: 100},
+    {key: "serie_30", name: "Treue Seele", text: "Hol dir 30 Tage am Stück die tägliche Belohnung", symbol: "❤️", wert: "serie", ziel: 30, geld: 10000, xp: 500},
+    {key: "punkte_8100", name: "Aufsteiger", text: "Erreiche Spieler-Level 10", symbol: "⭐", wert: "xp", ziel: 8100, geld: 3000, xp: 0},
+    {key: "punkte_57600", name: "Ass im Rettungsdienst", text: "Erreiche Spieler-Level 25", symbol: "🌟", wert: "xp", ziel: 57600, geld: 15000, xp: 0},
+  ],
+
   // Spieler-Level: Punkte, die für Level n insgesamt nötig sind = basis * (n-1)^2
   spielerLevelBasis: 100,
 };

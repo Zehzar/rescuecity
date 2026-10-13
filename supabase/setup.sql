@@ -83,6 +83,10 @@ update public.regeln
 update public.regeln
    set daten = daten || '{"transport":{"chance":{"KTW":1,"RTW":0.7,"NEF":0,"ITW":1},"bonus":0.2}}'::jsonb
  where id = 1 and not (daten ? 'transport');
+-- Erfolge: wert = welche Zahl zählt, ziel = ab wann, geld/xp = einmalige Belohnung
+update public.regeln
+   set daten = daten || jsonb_build_object('erfolge', '[{"key": "erste_wache", "name": "Grundstein", "text": "Baue deine erste Rettungswache", "symbol": "🏠", "wert": "wachen", "ziel": 1, "geld": 250, "xp": 25}, {"key": "wachen_3", "name": "Rettungsdienstbereich", "text": "Besitze 3 Rettungswachen", "symbol": "🗺️", "wert": "wachen", "ziel": 3, "geld": 1500, "xp": 100}, {"key": "wachen_10", "name": "Kreisleitstelle", "text": "Besitze 10 Rettungswachen", "symbol": "🏢", "wert": "wachen", "ziel": 10, "geld": 10000, "xp": 500}, {"key": "wache_lvl3", "name": "Ausgebaut", "text": "Baue eine Wache auf Level 3 aus", "symbol": "🔧", "wert": "wacheLevel", "ziel": 3, "geld": 1500, "xp": 100}, {"key": "wache_lvl5", "name": "Lehrrettungswache", "text": "Baue eine Wache auf Level 5 aus", "symbol": "🏆", "wert": "wacheLevel", "ziel": 5, "geld": 6000, "xp": 300}, {"key": "fahrzeuge_5", "name": "Fuhrpark", "text": "Besitze 5 Fahrzeuge", "symbol": "🚑", "wert": "fahrzeuge", "ziel": 5, "geld": 1500, "xp": 100}, {"key": "fahrzeuge_20", "name": "Großer Fuhrpark", "text": "Besitze 20 Fahrzeuge", "symbol": "🚒", "wert": "fahrzeuge", "ziel": 20, "geld": 8000, "xp": 400}, {"key": "einsatz_1", "name": "Erster Einsatz", "text": "Schließe deinen ersten Einsatz ab", "symbol": "🚨", "wert": "einsaetze", "ziel": 1, "geld": 250, "xp": 25}, {"key": "einsatz_10", "name": "Eingespielt", "text": "Schließe 10 Einsätze ab", "symbol": "⏱️", "wert": "einsaetze", "ziel": 10, "geld": 750, "xp": 50}, {"key": "einsatz_100", "name": "Routinier", "text": "Schließe 100 Einsätze ab", "symbol": "🎖️", "wert": "einsaetze", "ziel": 100, "geld": 4000, "xp": 250}, {"key": "einsatz_1000", "name": "Legende der Leitstelle", "text": "Schließe 1.000 Einsätze ab", "symbol": "👑", "wert": "einsaetze", "ziel": 1000, "geld": 25000, "xp": 1500}, {"key": "transport_10", "name": "Patientenbringer", "text": "Bringe 10 Patienten ins Krankenhaus", "symbol": "🏥", "wert": "transporte", "ziel": 10, "geld": 1000, "xp": 75}, {"key": "transport_100", "name": "Klinik-Stammgast", "text": "Bringe 100 Patienten ins Krankenhaus", "symbol": "💉", "wert": "transporte", "ziel": 100, "geld": 6000, "xp": 300}, {"key": "quiz_10", "name": "Wissbegierig", "text": "Beantworte 10 Quizfragen richtig", "symbol": "📘", "wert": "quizRichtig", "ziel": 10, "geld": 500, "xp": 50}, {"key": "quiz_100", "name": "Wandelndes Lehrbuch", "text": "Beantworte 100 Quizfragen richtig", "symbol": "🎓", "wert": "quizRichtig", "ziel": 100, "geld": 4000, "xp": 250}, {"key": "quiz_folge_10", "name": "Fehlerfrei", "text": "Beantworte 10 Quizfragen in Folge richtig", "symbol": "🎯", "wert": "quizFolge", "ziel": 10, "geld": 1500, "xp": 100}, {"key": "serie_7", "name": "Eine Woche dabei", "text": "Hol dir 7 Tage am Stück die tägliche Belohnung", "symbol": "📅", "wert": "serie", "ziel": 7, "geld": 1500, "xp": 100}, {"key": "serie_30", "name": "Treue Seele", "text": "Hol dir 30 Tage am Stück die tägliche Belohnung", "symbol": "❤️", "wert": "serie", "ziel": 30, "geld": 10000, "xp": 500}, {"key": "punkte_8100", "name": "Aufsteiger", "text": "Erreiche Spieler-Level 10", "symbol": "⭐", "wert": "xp", "ziel": 8100, "geld": 3000, "xp": 0}, {"key": "punkte_57600", "name": "Ass im Rettungsdienst", "text": "Erreiche Spieler-Level 25", "symbol": "🌟", "wert": "xp", "ziel": 57600, "geld": 15000, "xp": 0}]'::jsonb)
+ where id = 1 and not (daten ? 'erfolge');
 
 -- ---------- Spielstand ----------
 create table if not exists public.spieler_stand (
@@ -97,6 +101,21 @@ create table if not exists public.spieler_stand (
 );
 alter table public.spieler_stand add column if not exists bonus_tag date;              -- letzter Tag mit abgeholter Belohnung
 alter table public.spieler_stand add column if not exists bonus_serie int not null default 0; -- Tage am Stück
+-- Zähler für Erfolge
+alter table public.spieler_stand add column if not exists bonus_serie_max int not null default 0;
+alter table public.spieler_stand add column if not exists transporte int not null default 0;
+alter table public.spieler_stand add column if not exists quiz_folge int not null default 0;
+alter table public.spieler_stand add column if not exists quiz_folge_max int not null default 0;
+update public.spieler_stand set bonus_serie_max = bonus_serie where bonus_serie_max < bonus_serie;
+
+-- Freigeschaltete Erfolge
+create table if not exists public.erfolge_erreicht (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  erfolg text not null,
+  zeitpunkt timestamptz not null default now(),
+  primary key (user_id, erfolg)
+);
+alter table public.erfolge_erreicht enable row level security;
 
 create table if not exists public.wachen (
   id uuid primary key default gen_random_uuid(),
@@ -208,11 +227,12 @@ declare
   g bigint;
   x bigint;
   n int;
+  nt int;
 begin
   select coalesce(jsonb_agg(jsonb_build_object(
            'name', coalesce(f.name, f.typ || ' ' || f.nr), 'wache', w.name, 'geld', f.e_geld, 'xp', f.e_xp)), '[]'::jsonb),
-         coalesce(sum(f.e_geld), 0), coalesce(sum(f.e_xp), 0), count(*)
-    into fertig, g, x, n
+         coalesce(sum(f.e_geld), 0), coalesce(sum(f.e_xp), 0), count(*), count(f.e_kh)
+    into fertig, g, x, n, nt
   from public.fahrzeuge f join public.wachen w on w.id = f.wache_id
   where f.user_id = uid and f.e_ende <= now();
 
@@ -223,7 +243,8 @@ begin
            e_kh = null, e_route_kh = null, e_route_heim = null
      where user_id = uid and e_ende <= now();
     update public.spieler_stand
-       set geld = geld + g, xp = xp + x, einsaetze = einsaetze + n, xp_einsaetze = xp_einsaetze + x
+       set geld = geld + g, xp = xp + x, einsaetze = einsaetze + n, xp_einsaetze = xp_einsaetze + x,
+           transporte = transporte + nt
      where user_id = uid;
   end if;
   return fertig;
@@ -241,6 +262,44 @@ returns date language sql stable as $$
   select (now() at time zone 'Europe/Berlin')::date;
 $$;
 
+-- Zahlen, an denen die Erfolge gemessen werden
+create or replace function public.rc_werte(uid uuid)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'einsaetze', s.einsaetze, 'transporte', s.transporte, 'quizRichtig', s.quiz_richtig,
+    'quizFolge', s.quiz_folge_max, 'serie', s.bonus_serie_max, 'xp', s.xp,
+    'wachen', (select count(*) from public.wachen w where w.user_id = uid),
+    'wacheLevel', coalesce((select max(level) from public.wachen w where w.user_id = uid), 0),
+    'fahrzeuge', (select count(*) from public.fahrzeuge f where f.user_id = uid))
+  from public.spieler_stand s where s.user_id = uid;
+$$;
+
+-- Neu erreichte Erfolge eintragen und einmalig belohnen. Gibt die neuen Erfolge zurück.
+create or replace function public.rc_erfolge_pruefen(uid uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  w jsonb := public.rc_werte(uid);
+  e jsonb;
+  neu jsonb := '[]'::jsonb;
+begin
+  if w is null then
+    return neu;
+  end if;
+  for e in select x from jsonb_array_elements(coalesce(public.rc_regeln() -> 'erfolge', '[]'::jsonb)) x loop
+    if coalesce((w ->> (e ->> 'wert'))::numeric, 0) >= (e ->> 'ziel')::numeric then
+      insert into public.erfolge_erreicht (user_id, erfolg) values (uid, e ->> 'key') on conflict do nothing;
+      if found then
+        update public.spieler_stand
+           set geld = geld + coalesce((e ->> 'geld')::bigint, 0), xp = xp + coalesce((e ->> 'xp')::bigint, 0)
+         where user_id = uid;
+        neu := neu || jsonb_build_array(e);
+      end if;
+    end if;
+  end loop;
+  return neu;
+end;
+$$;
+
 -- Kompletter Spielstand in der Form, die das Spiel im Browser erwartet
 create or replace function public.rc_stand(uid uuid)
 returns jsonb language sql stable security definer set search_path = public as $$
@@ -256,6 +315,9 @@ returns jsonb language sql stable security definer set search_path = public as $
       'heute', public.rc_heute()::text,
       'abgeholt', coalesce(s.bonus_tag = public.rc_heute(), false),
       'serie', case when s.bonus_tag >= public.rc_heute() - 1 then s.bonus_serie else 0 end),
+    'werte', public.rc_werte(uid),
+    'erfolge', coalesce((select jsonb_object_agg(e.erfolg, public.rc_ms(e.zeitpunkt))
+                         from public.erfolge_erreicht e where e.user_id = uid), '{}'::jsonb),
     'stationen', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', w.id, 'name', w.name, 'lat', w.lat, 'lng', w.lng, 'level', w.level,
@@ -276,9 +338,15 @@ returns jsonb language sql stable security definer set search_path = public as $
   where s.user_id = uid;
 $$;
 
+-- Antwort auf jede Aktion: prüft zuerst neue Erfolge
 create or replace function public.rc_antwort(uid uuid, fertig jsonb)
-returns jsonb language sql stable security definer set search_path = public as $$
-  select jsonb_build_object('stand', public.rc_stand(uid), 'fertig', fertig, 'serverZeit', public.rc_ms(clock_timestamp()));
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  neu jsonb := public.rc_erfolge_pruefen(uid);
+begin
+  return jsonb_build_object('stand', public.rc_stand(uid), 'fertig', fertig, 'erfolge', neu,
+                            'serverZeit', public.rc_ms(clock_timestamp()));
+end;
 $$;
 
 -- ============================================================
@@ -545,9 +613,12 @@ begin
     quiz_richtig = quiz_richtig + case when ist_richtig then 1 else 0 end,
     geld = geld + case when ist_richtig then (q ->> 'geldProRichtig')::bigint else 0 end,
     xp = xp + case when ist_richtig then (q ->> 'xpProRichtig')::bigint else 0 end,
-    xp_quiz = xp_quiz + case when ist_richtig then (q ->> 'xpProRichtig')::bigint else 0 end
+    xp_quiz = xp_quiz + case when ist_richtig then (q ->> 'xpProRichtig')::bigint else 0 end,
+    quiz_folge = case when ist_richtig then quiz_folge + 1 else 0 end,
+    quiz_folge_max = greatest(quiz_folge_max, case when ist_richtig then quiz_folge + 1 else 0 end)
   where user_id = uid;
-  return jsonb_build_object('richtig', ist_richtig, 'korrekt', korrekt, 'stand', public.rc_stand(uid));
+  return jsonb_build_object('richtig', ist_richtig, 'korrekt', korrekt, 'erfolge', public.rc_erfolge_pruefen(uid),
+                            'stand', public.rc_stand(uid));
 end;
 $$;
 
@@ -573,7 +644,8 @@ begin
   g := (t -> 'geld' ->> i)::bigint;
   x := (t -> 'xp' ->> i)::bigint;
   update public.spieler_stand
-     set geld = geld + g, xp = xp + x, bonus_tag = heute, bonus_serie = serie
+     set geld = geld + g, xp = xp + x, bonus_tag = heute, bonus_serie = serie,
+         bonus_serie_max = greatest(bonus_serie_max, serie)
    where user_id = uid;
   return public.rc_antwort(uid, '[]'::jsonb)
          || jsonb_build_object('belohnung', jsonb_build_object('geld', g, 'xp', x, 'serie', serie));
@@ -604,7 +676,7 @@ $$;
 
 -- ---------- Rechte ----------
 -- Interne Hilfsfunktionen sind von außen nicht aufrufbar
-revoke execute on function public.rc_heute(), public.rc_regeln(), public.rc_sperren(uuid), public.rc_abrechnen(uuid),
+revoke execute on function public.rc_werte(uuid), public.rc_erfolge_pruefen(uuid), public.rc_heute(), public.rc_regeln(), public.rc_sperren(uuid), public.rc_abrechnen(uuid),
   public.rc_stand(uuid), public.rc_antwort(uuid, jsonb) from public, anon, authenticated;
 
 revoke execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),

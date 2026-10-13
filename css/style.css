@@ -241,3 +241,14 @@ body {
   font: 700 11px/14px system-ui, sans-serif; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.35);
 }
 .kh-marker.ziel { width: 24px; height: 24px; font-size: 14px; line-height: 20px; background: #8e24aa; }
+
+/* ============ Erfolge ============ */
+.dialog:has(.erfolge-liste) { max-width: 600px; }
+.erfolge-liste { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin: 12px 0; padding-right: 4px; }
+.erfolg { display: flex; align-items: center; gap: 12px; border: 1px solid var(--rand); border-radius: 10px; padding: 10px 12px; background: #fff; }
+.erfolg:not(.erreicht) .erfolg-symbol { filter: grayscale(1); opacity: .45; }
+.erfolg.erreicht { background: #fdf5e0; border-color: #e6c66a; }
+.erfolg-symbol { font-size: 30px; width: 40px; text-align: center; }
+.erfolg-text { flex: 1; min-width: 0; }
+.erfolg-text .fortschritt { margin: 6px 0 2px; }
+.erfolg-lohn { text-align: right; white-space: nowrap; }

@@ -42,6 +42,10 @@ Der Spielstand wird automatisch im Browser gespeichert.
 - Wie oft welcher Fahrzeugtyp transportiert und wie groß der Aufschlag ist, steht online in der Tabelle **regeln** unter `transport` (`chance` von 0 bis 1 je Typ, `bonus` 0.2 = +20 %), lokal in `js/config.js`.
 - Liste aktualisieren: `tools/krankenhaeuser-laden.html` öffnen und auf den Knopf klicken (fragt Wikidata, sonst OpenStreetMap). Die heruntergeladene Datei ersetzt `js/krankenhaeuser.js`.
 
+## Erfolge
+- 20 Erfolge (🏅 oben), z. B. erste Wache, 100 Einsätze, 10 Quizfragen in Folge richtig oder 7 Tage Serie. Jeder bringt einmalig Geld und Punkte.
+- Online prüft und belohnt der Server. Die Liste steht in der Tabelle **regeln** unter `erfolge` (`wert` = welche Zahl zählt, `ziel`, `geld`, `xp`). Mögliche Werte: einsaetze, transporte, quizRichtig, quizFolge, serie, xp, wachen, wacheLevel, fahrzeuge.
+
 ## Online-Version
 - Das Spiel läuft unter https://rescuecity.netlify.app. Netlify holt sich jede Änderung auf GitHub (Zweig `main`) automatisch und stellt sie nach etwa einer Minute online.
 - `impressum.html` und `datenschutz.html` sind unten im Spiel und im Anmeldefenster verlinkt. Wenn neue Dienste dazukommen (z. B. ein eigener Mail-Anbieter), muss die Datenschutzerklärung ergänzt werden.
