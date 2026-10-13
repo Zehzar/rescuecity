@@ -1090,28 +1090,73 @@ function mischen(arr) {
   return a;
 }
 
-function quizStartseite() {
+// Kategorien mit Fragenzahl und eigener Trefferquote. Online vom Server (kurz zwischengespeichert).
+let kategorienCache = null; // { zeit, liste }
+
+async function quizKategorien() {
+  if (!Online.aktiv) {
+    const stat = spieler().stats.kategorien || {};
+    const gruppen = {};
+    FRAGEN.forEach((f) => (gruppen[f.kategorie || "Allgemein"] = (gruppen[f.kategorie || "Allgemein"] || 0) + 1));
+    return Object.keys(gruppen).sort().map((k) => ({ kategorie: k, fragen: gruppen[k], frei: gruppen[k], ...(stat[k] || { richtig: 0, gesamt: 0 }) }));
+  }
+  if (kategorienCache && Date.now() - kategorienCache.zeit < 30000) return kategorienCache.liste;
+  const liste = await Online.rpc("quiz_kategorien");
+  kategorienCache = { zeit: Date.now(), liste };
+  return liste;
+}
+
+const kategorieSymbol = (k) => (CONFIG.quiz.kategorieSymbole || {})[k] || "📚";
+
+async function quizStartseite() {
   const p = spieler();
   const s = p.stats;
   const quote = s.quizGesamt ? Math.round((s.quizRichtig / s.quizGesamt) * 100) : 0;
   $("#quizInhalt").innerHTML = `
     <h2>🧠 Wissensquiz</h2>
-    <p>Beantworte Fragen mit je 4 Antwortmöglichkeiten. Jede richtige Antwort bringt
+    <p>Fragen für die Ausbildung zum Notfallsanitäter. Jede richtige Antwort bringt
        <b>💶 ${CONFIG.quiz.geldProRichtig}</b> und <b>⭐ ${CONFIG.quiz.xpProRichtig}</b> Punkte.</p>
     <div class="statistik">
       <div><b>${zahl(s.quizRichtig)}</b>richtig beantwortet</div>
       <div><b>${quote} %</b>Trefferquote</div>
       <div><b>${zahl(s.quizGesamt)}</b>Fragen beantwortet</div>
     </div>
-    <button class="btn primaer gross" id="quizStart">Runde starten (${Math.min(CONFIG.quiz.fragenProRunde, FRAGEN.length)} Fragen)</button>`;
-  $("#quizStart").onclick = quizStarten;
+    <button class="btn primaer gross" id="quizStart">Runde mit allen Kategorien starten</button>
+    <h3 class="quiz-unterkopf">Oder eine Kategorie üben</h3>
+    <div class="kategorien" id="quizKategorien"><p class="klein">Kategorien werden geladen …</p></div>`;
+  $("#quizStart").onclick = () => quizStarten(null);
+  let liste;
+  try {
+    liste = await quizKategorien();
+  } catch (e) {
+    // Datenbank noch ohne Kategorien (setup.sql nicht neu ausgeführt): nur die normale Runde anbieten
+    const el = $("#quizKategorien");
+    if (el) el.innerHTML = "";
+    return;
+  }
+  const el = $("#quizKategorien");
+  if (!el || quiz) return; // inzwischen eine Runde gestartet
+  el.innerHTML = liste
+    .map((k) => {
+      const q = k.gesamt ? Math.round((k.richtig / k.gesamt) * 100) : null;
+      return `<button class="kategorie" data-kategorie="${esc(k.kategorie)}" ${k.frei ? "" : "disabled"}>
+        <span class="kategorie-symbol">${kategorieSymbol(k.kategorie)}</span>
+        <span class="kategorie-text"><b>${esc(k.kategorie)}</b>
+          <span class="klein">${k.frei} von ${k.fragen} Fragen frei${q === null ? "" : ` · ${q} % richtig`}</span>
+          ${q === null ? "" : `<span class="fortschritt"><span style="width:${q}%"></span></span>`}
+        </span>
+      </button>`;
+    })
+    .join("");
+  el.querySelectorAll("[data-kategorie]").forEach((b) => (b.onclick = () => quizStarten(b.dataset.kategorie)));
 }
 
-async function quizStarten() {
+async function quizStarten(kategorie = null) {
+  kategorienCache = null;
   if (Online.aktiv) {
     let runde;
     try {
-      runde = await Online.rpc("quiz_runde");
+      runde = await Online.rpc("quiz_runde", kategorie ? { p_kategorie: kategorie } : {});
     } catch (e) {
       return toast(`⚠️ ${esc(e.message)}`);
     }
@@ -1119,7 +1164,7 @@ async function quizStarten() {
       const ab = runde.freiAb ? new Date(runde.freiAb).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
       $("#quizInhalt").innerHTML = `
         <h2>🧠 Alle Fragen beantwortet</h2>
-        <p>Du hast gerade alle ${runde.gesperrt} Fragen beantwortet. Jede Frage bringt nur einmal pro ${CONFIG.quiz.sperreStunden || 24} Stunden Punkte.</p>
+        <p>Du hast gerade alle ${runde.gesperrt} Fragen${kategorie ? ` aus <b>${esc(kategorie)}</b>` : ""} beantwortet. Jede Frage bringt nur einmal pro ${CONFIG.quiz.sperreStunden || 24} Stunden Punkte.</p>
         ${ab ? `<p>Die nächste Frage ist wieder frei ab <b>${ab}</b>.</p>` : ""}
         <button class="btn gross" id="quizZurueck">Zur Übersicht</button>`;
       $("#quizZurueck").onclick = quizStartseite;
@@ -1129,10 +1174,10 @@ async function quizStarten() {
       const reihenfolge = mischen([0, 1, 2, 3]);
       return { id: f.id, frage: f.frage, kategorie: f.kategorie || "", antworten: reihenfolge.map((i) => f.antworten[i]), reihenfolge, richtig: -1 };
     });
-    quiz = { fragen, index: 0, richtig: 0 };
+    quiz = { fragen, index: 0, richtig: 0, kategorie };
     return quizFrageZeigen();
   }
-  const fragen = mischen(FRAGEN)
+  const fragen = mischen(FRAGEN.filter((f) => !kategorie || (f.kategorie || "Allgemein") === kategorie))
     .slice(0, CONFIG.quiz.fragenProRunde)
     .map((f) => {
       const reihenfolge = mischen([0, 1, 2, 3]);
@@ -1143,14 +1188,14 @@ async function quizStarten() {
         richtig: reihenfolge.indexOf(f.richtig),
       };
     });
-  quiz = { fragen, index: 0, richtig: 0 };
+  quiz = { fragen, index: 0, richtig: 0, kategorie };
   quizFrageZeigen();
 }
 
 function quizFrageZeigen() {
   const f = quiz.fragen[quiz.index];
   $("#quizInhalt").innerHTML = `
-    <div class="quiz-meta"><span>Frage ${quiz.index + 1} von ${quiz.fragen.length}</span><span>${esc(f.kategorie)}</span><span>✔ ${quiz.richtig}</span></div>
+    <div class="quiz-meta"><span>Frage ${quiz.index + 1} von ${quiz.fragen.length}</span><span>${kategorieSymbol(f.kategorie)} ${esc(f.kategorie)}</span><span>✔ ${quiz.richtig}</span></div>
     <div class="fortschritt"><div style="width:${(quiz.index / quiz.fragen.length) * 100}%"></div></div>
     <div class="quiz-frage">${esc(f.frage)}</div>
     <div class="antworten">
@@ -1181,6 +1226,10 @@ async function quizAntwort(i) {
   p.stats.quizGesamt++;
   p.stats.quizFolge = i === f.richtig ? (p.stats.quizFolge || 0) + 1 : 0;
   p.stats.quizFolgeMax = Math.max(p.stats.quizFolgeMax || 0, p.stats.quizFolge);
+  const kat = (p.stats.kategorien = p.stats.kategorien || {});
+  const k = (kat[f.kategorie || "Allgemein"] = kat[f.kategorie || "Allgemein"] || { richtig: 0, gesamt: 0 });
+  k.gesamt++;
+  if (i === f.richtig) k.richtig++;
   if (i === f.richtig) {
     p.stats.quizRichtig++;
     punkteGeben(CONFIG.quiz.geldProRichtig, CONFIG.quiz.xpProRichtig, "quiz");
@@ -1222,8 +1271,10 @@ function quizErgebnis() {
       <button class="btn primaer gross" id="quizNochmal">Neue Runde</button>
       <button class="btn gross" id="quizZurueck">Zur Übersicht</button>
     </div>`;
+  const kategorie = quiz.kategorie;
   quiz = null;
-  $("#quizNochmal").onclick = quizStarten;
+  if (kategorie) $("#quizNochmal").textContent = `Neue Runde: ${kategorie}`;
+  $("#quizNochmal").onclick = () => quizStarten(kategorie);
   $("#quizZurueck").onclick = quizStartseite;
 }
 

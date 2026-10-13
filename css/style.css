@@ -127,12 +127,12 @@ body {
 
 /* ---- Quiz ---- */
 #quiz {
-  align-items: center; justify-content: center; padding: 24px;
+  padding: 24px; overflow-y: auto; /* Karte mittig, bei viel Inhalt scrollbar */
   background: linear-gradient(135deg, #e9efff 0%, #d7e2ff 100%);
 }
 .quiz-karte {
   background: #fff; border-radius: 18px; box-shadow: 0 10px 30px rgba(30,50,120,.15);
-  padding: 32px; width: 100%; max-width: 680px;
+  padding: 32px; width: 100%; max-width: 680px; margin: auto;
 }
 .quiz-karte h2 { margin-top: 0; color: var(--akzent); }
 .quiz-meta { display: flex; justify-content: space-between; font-size: 14px; color: var(--text2); margin-bottom: 10px; }
@@ -252,3 +252,17 @@ body {
 .erfolg-text { flex: 1; min-width: 0; }
 .erfolg-text .fortschritt { margin: 6px 0 2px; }
 .erfolg-lohn { text-align: right; white-space: nowrap; }
+
+/* ============ Quiz-Kategorien ============ */
+.quiz-unterkopf { margin: 26px 0 10px; font-size: 15px; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; }
+.kategorien { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.kategorie {
+  display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px; cursor: pointer;
+  border: 2px solid var(--rand); border-radius: 12px; background: #fff; font: inherit; color: inherit;
+}
+.kategorie:hover:not(:disabled) { border-color: var(--akzent); background: var(--akzent-hell); }
+.kategorie:disabled { opacity: .5; cursor: default; }
+.kategorie-symbol { font-size: 26px; }
+.kategorie-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.kategorie-text .fortschritt { display: block; margin-top: 4px; }
+.kategorie-text .fortschritt > span { display: block; height: 100%; background: var(--ok); }

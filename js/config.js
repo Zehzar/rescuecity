@@ -114,6 +114,12 @@ const CONFIG = {
     fragenProRunde: 10,
     geldProRichtig: 50,
     xpProRichtig: 25,
+    // Symbole für die Kategorien (Kategorien selbst kommen aus den Fragen, neue erscheinen automatisch)
+    kategorieSymbole: {
+      "Physiologie": "🫀", "Pathophysiologie": "🦠", "Notfallmedizin": "🚑", "Traumatologie": "🩹",
+      "Pharmakologie": "💊", "Recht": "⚖️", "Qualitätsmanagement": "📋", "Hygiene": "🧼",
+      "Einsatztaktik & Kommunikation": "📻", "Medizinprodukte": "🩺",
+    },
   },
 
   // Tägliche Belohnung fürs Einloggen. Eintrag 1 = Tag 1 der Serie, Eintrag 7 = Tag 7,

@@ -184,6 +184,19 @@ select f.frage, f.antworten, f.richtig, f.kategorie
 from jsonb_to_recordset('[{"frage":"Welche Notrufnummer gilt EU-weit für Rettungsdienst und Feuerwehr?","antworten":["110","112","116 117","19222"],"richtig":1,"kategorie":"Grundlagen"},{"frage":"Wofür steht die Abkürzung RTW?","antworten":["Rettungstransportwagen","Rettungswagen","Regionaler Transportwagen","Rettungstechnischer Wagen"],"richtig":1,"kategorie":"Fahrzeuge"},{"frage":"Welches Verhältnis von Herzdruckmassage zu Beatmung gilt bei der Reanimation Erwachsener?","antworten":["15:2","30:2","5:1","30:1"],"richtig":1,"kategorie":"Reanimation"},{"frage":"Mit welcher Frequenz sollen Thoraxkompressionen bei Erwachsenen erfolgen?","antworten":["60–80 pro Minute","80–100 pro Minute","100–120 pro Minute","120–140 pro Minute"],"richtig":2,"kategorie":"Reanimation"},{"frage":"Wie tief soll der Brustkorb bei Erwachsenen während der Herzdruckmassage eingedrückt werden?","antworten":["2–3 cm","3–4 cm","5–6 cm","8–10 cm"],"richtig":2,"kategorie":"Reanimation"},{"frage":"Welchen Höchstwert kann die Glasgow Coma Scale (GCS) erreichen?","antworten":["10","12","15","20"],"richtig":2,"kategorie":"Diagnostik"},{"frage":"Wofür steht das „A“ im ABCDE-Schema?","antworten":["Airway (Atemweg)","Atmung","Allgemeinzustand","Anamnese"],"richtig":0,"kategorie":"Diagnostik"},{"frage":"Wofür steht der FAST-Test?","antworten":["Herzinfarkt","Schlaganfall","Unterzuckerung","Lungenembolie"],"richtig":1,"kategorie":"Notfälle"},{"frage":"Welche Atemfrequenz ist bei einem gesunden Erwachsenen in Ruhe normal?","antworten":["4–8 pro Minute","12–20 pro Minute","25–35 pro Minute","40–50 pro Minute"],"richtig":1,"kategorie":"Vitalwerte"},{"frage":"In welche Lage bringt man eine bewusstlose Person mit normaler Atmung?","antworten":["Schocklage","Oberkörperhochlagerung","Stabile Seitenlage","Flache Rückenlage"],"richtig":2,"kategorie":"Erste Hilfe"},{"frage":"Wofür steht die Abkürzung NEF?","antworten":["Notfall-Einsatzfahrzeug","Notarzteinsatzfahrzeug","Notarzt-Erstversorgungsfahrzeug","Nächstes Einsatzfahrzeug"],"richtig":1,"kategorie":"Fahrzeuge"},{"frage":"Welche Telefonnummer hat der ärztliche Bereitschaftsdienst in Deutschland?","antworten":["112","110","116 117","115"],"richtig":2,"kategorie":"Grundlagen"}]'::jsonb) as f(frage text, antworten jsonb, richtig int, kategorie text)
 where not exists (select 1 from public.fragen);
 
+-- Kategorien für die NotSan-Ausbildung in NRW: alte Beispielfragen einsortieren (nur wenn noch unverändert)
+update public.fragen set kategorie = case kategorie
+    when 'Grundlagen' then 'Einsatztaktik & Kommunikation'
+    when 'Fahrzeuge' then 'Einsatztaktik & Kommunikation'
+    when 'Vitalwerte' then 'Physiologie'
+    else 'Notfallmedizin' end
+ where kategorie in ('Grundlagen', 'Fahrzeuge', 'Reanimation', 'Diagnostik', 'Notfälle', 'Vitalwerte', 'Erste Hilfe');
+-- Startfragen je Kategorie (jede Frage nur einmal, eigene Änderungen bleiben erhalten)
+insert into public.fragen (frage, antworten, richtig, kategorie)
+select f.frage, f.antworten, f.richtig, f.kategorie
+from jsonb_to_recordset('[{"frage": "Wo entsteht beim gesunden Herzen normalerweise die elektrische Erregung?", "antworten": ["AV-Knoten", "Sinusknoten", "His-Bündel", "Purkinje-Fasern"], "richtig": 1, "kategorie": "Physiologie"}, {"frage": "In welchem Bereich liegt der normale pH-Wert des arteriellen Blutes?", "antworten": ["6,85–6,95", "7,05–7,15", "7,35–7,45", "7,65–7,75"], "richtig": 2, "kategorie": "Physiologie"}, {"frage": "Wie berechnet sich das Herzzeitvolumen?", "antworten": ["Schlagvolumen × Herzfrequenz", "Blutdruck × Herzfrequenz", "Schlagvolumen ÷ Herzfrequenz", "Atemfrequenz × Atemzugvolumen"], "richtig": 0, "kategorie": "Physiologie"}, {"frage": "Wie viele Halswirbel hat der Mensch?", "antworten": ["5", "7", "12", "5 bis 6, je nach Körpergröße"], "richtig": 1, "kategorie": "Physiologie"}, {"frage": "Wo findet der Gasaustausch in der Lunge statt?", "antworten": ["In der Trachea", "In den Bronchien", "In den Alveolen", "Im Rippenfell (Pleura)"], "richtig": 2, "kategorie": "Physiologie"}, {"frage": "Was ist die Ursache eines hypovolämischen Schocks?", "antworten": ["Versagen der Pumpfunktion des Herzens", "Zu wenig zirkulierendes Blutvolumen", "Allergische Reaktion mit Gefäßweitstellung", "Verlegung der Atemwege"], "richtig": 1, "kategorie": "Pathophysiologie"}, {"frage": "Was liegt beim Diabetes mellitus Typ 1 zugrunde?", "antworten": ["Absoluter Insulinmangel durch Zerstörung der Betazellen", "Insulinresistenz durch Übergewicht", "Zu hohe Insulinproduktion", "Mangel an Glukagon"], "richtig": 0, "kategorie": "Pathophysiologie"}, {"frage": "Was passiert bei einem ischämischen Schlaganfall?", "antworten": ["Ein Blutgefäß im Gehirn reißt", "Ein hirnversorgendes Gefäß wird verschlossen", "Der Hirndruck sinkt stark ab", "Die Hirnhäute entzünden sich"], "richtig": 1, "kategorie": "Pathophysiologie"}, {"frage": "Wie entsteht ein kardiales Lungenödem?", "antworten": ["Durch Rückstau von Blut bei Linksherzschwäche", "Durch Rückstau von Blut bei Rechtsherzschwäche", "Durch eine Infektion der Bronchien", "Durch zu niedrigen Blutdruck im Lungenkreislauf"], "richtig": 0, "kategorie": "Pathophysiologie"}, {"frage": "Wofür steht das „S“ im SAMPLER-Schema?", "antworten": ["Schmerzen", "Symptome", "Sauerstoffsättigung", "Schockindex"], "richtig": 1, "kategorie": "Notfallmedizin"}, {"frage": "Ab welchem Blutzuckerwert spricht man beim Erwachsenen im Rettungsdienst üblicherweise von einer Hypoglykämie?", "antworten": ["unter 60 mg/dl", "unter 120 mg/dl", "unter 150 mg/dl", "unter 200 mg/dl"], "richtig": 0, "kategorie": "Notfallmedizin"}, {"frage": "Welcher Rhythmus ist bei der Reanimation defibrillierbar?", "antworten": ["Asystolie", "Pulslose elektrische Aktivität (PEA)", "Kammerflimmern", "Sinusbradykardie"], "richtig": 2, "kategorie": "Notfallmedizin"}, {"frage": "Wofür steht das kleine „c“ im <c>ABCDE-Schema?", "antworten": ["Circulation (Kreislauf)", "Critical bleeding (kritische Blutung)", "C-Wirbelsäule", "Coma (Bewusstsein)"], "richtig": 1, "kategorie": "Traumatologie"}, {"frage": "Wann wird ein Tourniquet angelegt?", "antworten": ["Bei jeder Schnittwunde", "Bei lebensbedrohlicher Blutung an einer Extremität", "Bei einem Knochenbruch ohne Blutung", "Bei Nasenbluten"], "richtig": 1, "kategorie": "Traumatologie"}, {"frage": "Wie viel Prozent der Körperoberfläche entspricht nach der Neunerregel ein ganzer Arm beim Erwachsenen?", "antworten": ["1 %", "9 %", "18 %", "27 %"], "richtig": 1, "kategorie": "Traumatologie"}, {"frage": "Welches Medikament ist das Gegenmittel bei einer Opioid-Überdosierung?", "antworten": ["Naloxon", "Flumazenil", "Atropin", "Adrenalin"], "richtig": 0, "kategorie": "Pharmakologie"}, {"frage": "Wie viel Adrenalin wird bei der Reanimation Erwachsener nach ERC-Leitlinie pro Gabe verabreicht?", "antworten": ["0,1 mg", "0,5 mg", "1 mg", "5 mg"], "richtig": 2, "kategorie": "Pharmakologie"}, {"frage": "Was bedeutet der Applikationsweg „i.o.“?", "antworten": ["Intraoral (in den Mund)", "Intraossär (in den Knochen)", "Intraokulär (ins Auge)", "Intraoperativ"], "richtig": 1, "kategorie": "Pharmakologie"}, {"frage": "Was beschreibt die Halbwertszeit eines Medikaments?", "antworten": ["Die Zeit bis zum Wirkungseintritt", "Die Zeit, bis die Hälfte des Wirkstoffs abgebaut bzw. ausgeschieden ist", "Die halbe Haltbarkeit der Packung", "Die Dauer, bis die Hälfte der Patienten reagiert"], "richtig": 1, "kategorie": "Pharmakologie"}, {"frage": "Welches Gesetz regelt den Rettungsdienst in Nordrhein-Westfalen?", "antworten": ["Das Rettungsgesetz NRW (RettG NRW)", "Das Feuerwehrgesetz NRW", "Das Infektionsschutzgesetz", "Das Sozialgesetzbuch XI"], "richtig": 0, "kategorie": "Recht"}, {"frage": "Wie lange dauert die Ausbildung zur Notfallsanitäterin oder zum Notfallsanitäter in Vollzeit?", "antworten": ["1 Jahr", "2 Jahre", "3 Jahre", "4 Jahre"], "richtig": 2, "kategorie": "Recht"}, {"frage": "Was regelt § 2a des Notfallsanitätergesetzes?", "antworten": ["Die Dauer der Ausbildung", "Die eigenverantwortliche Durchführung heilkundlicher Maßnahmen bis zum Eintreffen des Notarztes", "Die Vergütung während der Ausbildung", "Die Pflicht zur Fortbildung"], "richtig": 1, "kategorie": "Recht"}, {"frage": "In welchem Paragraphen des Strafgesetzbuchs ist die Schweigepflicht geregelt?", "antworten": ["§ 203 StGB", "§ 223 StGB", "§ 323c StGB", "§ 34 StGB"], "richtig": 0, "kategorie": "Recht"}, {"frage": "Was regelt § 323c StGB?", "antworten": ["Körperverletzung", "Unterlassene Hilfeleistung", "Rechtfertigenden Notstand", "Fahrlässige Tötung"], "richtig": 1, "kategorie": "Recht"}, {"frage": "Wofür stehen die vier Buchstaben im PDCA-Zyklus?", "antworten": ["Plan – Do – Check – Act", "Prüfen – Dokumentieren – Controllen – Abschließen", "Plan – Decide – Control – Analyse", "Prepare – Deliver – Count – Adjust"], "richtig": 0, "kategorie": "Qualitätsmanagement"}, {"frage": "Was ist ein CIRS?", "antworten": ["Ein Funkrufname", "Ein anonymes Berichtssystem für kritische Ereignisse und Beinahe-Fehler", "Ein Gerät zur Kreislaufüberwachung", "Ein Abrechnungssystem für Einsätze"], "richtig": 1, "kategorie": "Qualitätsmanagement"}, {"frage": "Wofür steht die Norm DIN EN ISO 9001?", "antworten": ["Hygienestandards in Kliniken", "Anforderungen an Qualitätsmanagementsysteme", "Sicherheit von Rettungswagen", "Datenschutz im Gesundheitswesen"], "richtig": 1, "kategorie": "Qualitätsmanagement"}, {"frage": "Wie heißen in NRW die Vorgaben der Ärztlichen Leitungen Rettungsdienst für Maßnahmen von Notfallsanitätern?", "antworten": ["SAA und BPR (Standardarbeitsanweisungen und Behandlungspfade)", "ICD und OPS", "SOP und GCS", "DRG und PEPP"], "richtig": 0, "kategorie": "Qualitätsmanagement"}, {"frage": "Wie lange muss die hygienische Händedesinfektion mindestens einwirken (bei den meisten Mitteln)?", "antworten": ["5 Sekunden", "10 Sekunden", "30 Sekunden", "5 Minuten"], "richtig": 2, "kategorie": "Hygiene"}, {"frage": "Wie viele Momente der Händehygiene nennt die WHO?", "antworten": ["3", "5", "7", "10"], "richtig": 1, "kategorie": "Hygiene"}, {"frage": "Wofür steht die Abkürzung MRSA?", "antworten": ["Methicillin-resistenter Staphylococcus aureus", "Multiresistente Streptokokken-Art", "Mehrfach resistente Salmonellen", "Medizinisch relevanter Sporenbildner"], "richtig": 0, "kategorie": "Hygiene"}, {"frage": "Was bedeutet Status 5 im Funkmeldesystem (FMS)?", "antworten": ["Einsatz übernommen", "Sprechwunsch", "Am Einsatzort", "Nicht einsatzbereit"], "richtig": 1, "kategorie": "Einsatztaktik & Kommunikation"}, {"frage": "Was bedeutet die Sichtungskategorie Rot (SK I) beim MANV?", "antworten": ["Leicht verletzt, später behandeln", "Akute vitale Bedrohung, sofortige Behandlung", "Ohne Überlebenschance", "Unverletzt"], "richtig": 1, "kategorie": "Einsatztaktik & Kommunikation"}, {"frage": "Wofür steht die Abkürzung PSNV?", "antworten": ["Persönliche Schutz- und Notfallversorgung", "Psychosoziale Notfallversorgung", "Patientenschonende Notfall-Verlegung", "Präklinische Schmerz- und Narkoseversorgung"], "richtig": 1, "kategorie": "Einsatztaktik & Kommunikation"}, {"frage": "Welche Verordnung regelt das Betreiben und Anwenden von Medizinprodukten, z. B. die Einweisung in Geräte?", "antworten": ["MPBetreibV (Medizinprodukte-Betreiberverordnung)", "StVO", "BtMVV", "ArbZG"], "richtig": 0, "kategorie": "Medizinprodukte"}]'::jsonb) as f(frage text, antworten jsonb, richtig int, kategorie text)
+where not exists (select 1 from public.fragen x where x.frage = f.frage);
+
 -- Kein direkter Zugriff aus dem Browser: alles läuft über die Funktionen unten
 alter table public.regeln enable row level security;
 alter table public.spieler_stand enable row level security;
@@ -553,7 +566,9 @@ end;
 $$;
 
 -- Quizrunde: Fragen ohne Lösung. Jede Frage gibt nur einmal pro Sperrzeit Punkte.
-create or replace function public.quiz_runde()
+-- Quizrunde, optional nur aus einer Kategorie (p_kategorie = null: alle)
+drop function if exists public.quiz_runde();
+create or replace function public.quiz_runde(p_kategorie text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
@@ -568,7 +583,7 @@ begin
 
   with auswahl as (
     select f.* from public.fragen f
-    where f.aktiv and not exists (
+    where f.aktiv and (p_kategorie is null or f.kategorie = p_kategorie) and not exists (
       select 1 from public.quiz_beantwortet b
       where b.user_id = uid and b.frage_id = f.id and b.zeitpunkt > now() - sperre)
     order by random()
@@ -581,14 +596,39 @@ begin
   from auswahl a;
 
   select count(*) into gesperrt from public.fragen f
-  where f.aktiv and exists (select 1 from public.quiz_beantwortet b
-                            where b.user_id = uid and b.frage_id = f.id and b.zeitpunkt > now() - sperre);
+  where f.aktiv and (p_kategorie is null or f.kategorie = p_kategorie)
+    and exists (select 1 from public.quiz_beantwortet b
+                where b.user_id = uid and b.frage_id = f.id and b.zeitpunkt > now() - sperre);
   select min(b.zeitpunkt) + sperre into frei_ab from public.quiz_beantwortet b
-  where b.user_id = uid and b.zeitpunkt > now() - sperre;
+  join public.fragen f on f.id = b.frage_id
+  where b.user_id = uid and b.zeitpunkt > now() - sperre and (p_kategorie is null or f.kategorie = p_kategorie);
 
   return jsonb_build_object('fragen', fragen, 'gesperrt', gesperrt,
                             'freiAb', case when frei_ab is null then null else public.rc_ms(frei_ab) end);
 end;
+$$;
+
+-- Kategorien mit Anzahl Fragen, gerade freien Fragen und der eigenen Trefferquote
+create or replace function public.quiz_kategorien()
+returns jsonb language sql stable security definer set search_path = public as $$
+  with sperre as (
+    select make_interval(hours => coalesce((public.rc_regeln() -> 'quiz' ->> 'sperreStunden')::int, 24)) as dauer
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'kategorie', k.kategorie, 'fragen', k.fragen, 'frei', k.frei, 'richtig', k.richtig, 'gesamt', k.gesamt)
+           order by k.kategorie), '[]'::jsonb)
+  from (
+    select coalesce(f.kategorie, 'Allgemein') as kategorie,
+           count(*) as fragen,
+           count(*) filter (where not exists (
+             select 1 from public.quiz_beantwortet b, sperre
+             where b.user_id = auth.uid() and b.frage_id = f.id and b.zeitpunkt > now() - sperre.dauer)) as frei,
+           coalesce(sum((select count(*) from public.quiz_beantwortet b where b.user_id = auth.uid() and b.frage_id = f.id and b.richtig)), 0) as richtig,
+           coalesce(sum((select count(*) from public.quiz_beantwortet b where b.user_id = auth.uid() and b.frage_id = f.id)), 0) as gesamt
+    from public.fragen f
+    where f.aktiv
+    group by coalesce(f.kategorie, 'Allgemein')
+  ) k;
 $$;
 
 create or replace function public.quiz_antwort(p_frage bigint, p_antwort int)
@@ -681,12 +721,12 @@ revoke execute on function public.rc_werte(uuid), public.rc_erfolge_pruefen(uuid
 
 revoke execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
-  public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
+  public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(text), public.quiz_kategorien(), public.quiz_antwort(bigint, int),
   public.taegliche_belohnung()
   from public, anon;
 grant execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
-  public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
+  public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(text), public.quiz_kategorien(), public.quiz_antwort(bigint, int),
   public.taegliche_belohnung()
   to authenticated;
 grant execute on function public.regeln_laden(), public.bestenliste(int) to anon, authenticated;

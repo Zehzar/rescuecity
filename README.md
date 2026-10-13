@@ -28,6 +28,7 @@ Der Spielstand wird automatisch im Browser gespeichert.
 - Schutz gegen Schummeln: Der Server rechnet Geld, Punkte, Einsatzzeiten und Quizantworten selbst aus. Jede Quizfrage bringt nur einmal pro 24 Stunden Punkte.
 - Im Online-Modus gelten die Zahlen aus der Supabase-Tabelle **regeln** (Spalte `daten`) statt aus `js/config.js`.
 - Quizfragen stehen online in der Tabelle **fragen** (Table Editor → Insert row; `antworten` = Liste mit 4 Texten, `richtig` = 0 bis 3). `js/questions.js` gilt nur noch im lokalen Modus.
+- Kategorien ergeben sich aus der Spalte `kategorie` der Fragen. Eine neue Kategorie entsteht einfach, indem du bei einer Frage einen neuen Namen einträgst. Das Symbol dazu steht in `js/config.js` unter `quiz.kategorieSymbole` (sonst 📚). Vorhanden: Physiologie, Pathophysiologie, Notfallmedizin, Traumatologie, Pharmakologie, Recht, Qualitätsmanagement, Hygiene, Einsatztaktik & Kommunikation, Medizinprodukte.
 - Zugangsdaten stehen in `js/config.js` unter `online`. Leer lassen = Spiel läuft nur lokal.
 - Datenbank einrichten oder aktualisieren: Inhalt von `supabase/setup.sql` im Supabase SQL-Editor ausführen (kann wiederholt werden).
 - In Supabase unter Authentication → URL Configuration: Site URL `http://localhost:8080` (später die echte Web-Adresse).
