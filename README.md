@@ -32,6 +32,10 @@ Der Spielstand wird automatisch im Browser gespeichert.
 - Datenbank einrichten oder aktualisieren: Inhalt von `supabase/setup.sql` im Supabase SQL-Editor ausführen (kann wiederholt werden).
 - In Supabase unter Authentication → URL Configuration: Site URL `http://localhost:8080` (später die echte Web-Adresse).
 
+## Tägliche Belohnung
+- Einmal pro Tag (deutsche Zeit) gibt es über das 🎁 oben eine Belohnung. Jeder weitere Tag am Stück bringt mehr, Tag 7 ist der große Bonus, danach beginnt die Woche von vorn. Wer einen Tag auslässt, startet wieder bei Tag 1.
+- Die Beträge stehen online in der Tabelle **regeln** unter `taeglich` (`geld` und `xp`, je 7 Zahlen), lokal in `js/config.js`.
+
 ## Online-Version
 - Das Spiel läuft unter https://rescuecity.netlify.app. Netlify holt sich jede Änderung auf GitHub (Zweig `main`) automatisch und stellt sie nach etwa einer Minute online.
 - `impressum.html` und `datenschutz.html` sind unten im Spiel und im Anmeldefenster verlinkt. Wenn neue Dienste dazukommen (z. B. ein eigener Mail-Anbieter), muss die Datenschutzerklärung ergänzt werden.

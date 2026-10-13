@@ -175,6 +175,7 @@ const Online = (() => {
     CONFIG.einsatzDauern = r.einsatzDauern.map((d) => ({ name: d.key, ...(CONFIG.einsatzDauern.find((x) => x.key === d.key) || {}), ...d }));
     CONFIG.fahrzeuge = r.fahrzeuge.map((f) => ({ name: f.typ, farbe: "#555", ...(CONFIG.fahrzeuge.find((x) => x.typ === f.typ) || {}), ...f }));
     Object.assign(CONFIG.quiz, r.quiz);
+    if (r.taeglich) CONFIG.taeglich = r.taeglich;
   }
 
   // ---------- Start ----------

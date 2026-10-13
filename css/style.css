@@ -208,3 +208,29 @@ body {
 /* ============ Fußzeile ============ */
 .fuss { font-size: 12px; color: var(--text2); text-align: center; padding: 4px; background: var(--karte); border-top: 1px solid var(--rand); }
 .fuss a { color: var(--text2); }
+
+/* ============ Tägliche Belohnung ============ */
+.bonus-knopf {
+  position: relative; background: rgba(255,255,255,.1); border: 0; border-radius: 10px;
+  font-size: 22px; padding: 4px 10px; cursor: pointer; line-height: 1.2;
+}
+.bonus-knopf:hover { background: rgba(255,255,255,.2); }
+.bonus-knopf.bereit { animation: bonus-wackeln 1.6s infinite; }
+.bonus-knopf.bereit::after {
+  content: ""; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px;
+  background: #ffd54f; border-radius: 50%; box-shadow: 0 0 0 2px var(--kopf);
+}
+@keyframes bonus-wackeln {
+  0%, 70%, 100% { transform: rotate(0); }
+  76% { transform: rotate(-12deg); } 82% { transform: rotate(12deg); } 88% { transform: rotate(-8deg); } 94% { transform: rotate(6deg); }
+}
+.bonus-tage { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 14px 0; }
+.bonus-tag {
+  border: 2px solid var(--rand); border-radius: 10px; padding: 8px 2px; text-align: center; font-size: 13px; background: #fff;
+}
+.bonus-tag .bonus-symbol { font-size: 22px; margin: 2px 0; }
+.bonus-tag.erledigt { background: #e8f5e9; border-color: #a5d6a7; opacity: .8; }
+.bonus-tag.heute { border-color: var(--akzent); background: var(--akzent-hell); transform: scale(1.06); font-weight: 600; }
+@media (max-width: 560px) { .bonus-tage { grid-template-columns: repeat(4, 1fr); } }
+.dialog:has(.bonus-tage) { max-width: 560px; }
+.bonus-tag div { white-space: nowrap; }

@@ -104,6 +104,13 @@ const CONFIG = {
     xpProRichtig: 25,
   },
 
+  // Tägliche Belohnung fürs Einloggen. Eintrag 1 = Tag 1 der Serie, Eintrag 7 = Tag 7,
+  // danach beginnt die Woche von vorn. Wer einen Tag auslässt, startet wieder bei Tag 1.
+  taeglich: {
+    geld: [250, 350, 500, 650, 800, 1000, 2000],
+    xp: [10, 15, 20, 25, 30, 40, 100],
+  },
+
   // Spieler-Level: Punkte, die für Level n insgesamt nötig sind = basis * (n-1)^2
   spielerLevelBasis: 100,
 };

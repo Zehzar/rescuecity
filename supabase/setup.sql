@@ -75,6 +75,10 @@ create table if not exists public.regeln (
 );
 insert into public.regeln (id, daten) values (1, '{"startGeld":5000,"zeitFaktor":1,"ersteWacheKostenlos":true,"wacheBaukosten":2000,"wachenLevel":[{"level":1,"stellplaetze":2,"upgradeKosten":3000},{"level":2,"stellplaetze":4,"upgradeKosten":7500},{"level":3,"stellplaetze":6,"upgradeKosten":15000},{"level":4,"stellplaetze":8,"upgradeKosten":30000},{"level":5,"stellplaetze":10,"upgradeKosten":null}],"einsatzDauern":[{"key":"15m","minuten":15,"proMinute":10,"xpProMinute":2},{"key":"30m","minuten":30,"proMinute":8,"xpProMinute":1.6},{"key":"1h","minuten":60,"proMinute":6,"xpProMinute":1.2},{"key":"4h","minuten":240,"proMinute":4,"xpProMinute":0.8},{"key":"8h","minuten":480,"proMinute":3,"xpProMinute":0.6},{"key":"12h","minuten":720,"proMinute":2.5,"xpProMinute":0.5}],"fahrzeuge":[{"typ":"KTW","preis":1500,"abWacheLevel":1,"faktor":0.8},{"typ":"RTW","preis":3000,"abWacheLevel":1,"faktor":1},{"typ":"NEF","preis":6000,"abWacheLevel":3,"faktor":1.4},{"typ":"ITW","preis":12000,"abWacheLevel":5,"faktor":1.8}],"quiz":{"fragenProRunde":10,"geldProRichtig":50,"xpProRichtig":25,"sperreStunden":24}}'::jsonb)
 on conflict (id) do nothing;
+-- Tägliche Belohnung: Eintrag 1 = Tag 1 der Serie ... Eintrag 7 = Tag 7, danach beginnt die Woche von vorn
+update public.regeln
+   set daten = daten || '{"taeglich":{"geld":[250,350,500,650,800,1000,2000],"xp":[10,15,20,25,30,40,100]}}'::jsonb
+ where id = 1 and not (daten ? 'taeglich');
 
 -- ---------- Spielstand ----------
 create table if not exists public.spieler_stand (
@@ -87,6 +91,8 @@ create table if not exists public.spieler_stand (
   xp_einsaetze bigint not null default 0,
   xp_quiz bigint not null default 0
 );
+alter table public.spieler_stand add column if not exists bonus_tag date;              -- letzter Tag mit abgeholter Belohnung
+alter table public.spieler_stand add column if not exists bonus_serie int not null default 0; -- Tage am Stück
 
 create table if not exists public.wachen (
   id uuid primary key default gen_random_uuid(),
@@ -220,6 +226,12 @@ returns bigint language sql immutable as $$
   select (extract(epoch from t) * 1000)::bigint;
 $$;
 
+-- Heutiges Datum nach deutscher Zeit (Tageswechsel um Mitternacht)
+create or replace function public.rc_heute()
+returns date language sql stable as $$
+  select (now() at time zone 'Europe/Berlin')::date;
+$$;
+
 -- Kompletter Spielstand in der Form, die das Spiel im Browser erwartet
 create or replace function public.rc_stand(uid uuid)
 returns jsonb language sql stable security definer set search_path = public as $$
@@ -231,6 +243,10 @@ returns jsonb language sql stable security definer set search_path = public as $
     'stats', jsonb_build_object(
       'einsaetze', s.einsaetze, 'quizRichtig', s.quiz_richtig, 'quizGesamt', s.quiz_gesamt,
       'xpEinsaetze', s.xp_einsaetze, 'xpQuiz', s.xp_quiz),
+    'bonus', jsonb_build_object(
+      'heute', public.rc_heute()::text,
+      'abgeholt', coalesce(s.bonus_tag = public.rc_heute(), false),
+      'serie', case when s.bonus_tag >= public.rc_heute() - 1 then s.bonus_serie else 0 end),
     'stationen', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', w.id, 'name', w.name, 'lat', w.lat, 'lng', w.lng, 'level', w.level,
@@ -498,6 +514,35 @@ begin
 end;
 $$;
 
+-- Tägliche Belohnung abholen (einmal pro Kalendertag, Serie reißt ab, wenn ein Tag fehlt)
+create or replace function public.taegliche_belohnung()
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  t jsonb := public.rc_regeln() -> 'taeglich';
+  s public.spieler_stand;
+  heute date := public.rc_heute();
+  serie int;
+  i int;
+  g bigint;
+  x bigint;
+begin
+  s := public.rc_sperren(uid);
+  if s.bonus_tag = heute then
+    raise exception 'Die heutige Belohnung hast du schon abgeholt';
+  end if;
+  serie := case when s.bonus_tag = heute - 1 then s.bonus_serie + 1 else 1 end;
+  i := (serie - 1) % jsonb_array_length(t -> 'geld');
+  g := (t -> 'geld' ->> i)::bigint;
+  x := (t -> 'xp' ->> i)::bigint;
+  update public.spieler_stand
+     set geld = geld + g, xp = xp + x, bonus_tag = heute, bonus_serie = serie
+   where user_id = uid;
+  return public.rc_antwort(uid, '[]'::jsonb)
+         || jsonb_build_object('belohnung', jsonb_build_object('geld', g, 'xp', x, 'serie', serie));
+end;
+$$;
+
 create or replace function public.bestenliste(anzahl int default 100)
 returns table (username text, xp bigint, einsaetze bigint, quiz_richtig bigint)
 language sql stable security definer set search_path = public as $$
@@ -522,15 +567,17 @@ $$;
 
 -- ---------- Rechte ----------
 -- Interne Hilfsfunktionen sind von außen nicht aufrufbar
-revoke execute on function public.rc_regeln(), public.rc_sperren(uuid), public.rc_abrechnen(uuid),
+revoke execute on function public.rc_heute(), public.rc_regeln(), public.rc_sperren(uuid), public.rc_abrechnen(uuid),
   public.rc_stand(uuid), public.rc_antwort(uuid, jsonb) from public, anon, authenticated;
 
 revoke execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
-  public.einsatz_starten(uuid, text, text, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int)
+  public.einsatz_starten(uuid, text, text, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
+  public.taegliche_belohnung()
   from public, anon;
 grant execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
-  public.einsatz_starten(uuid, text, text, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int)
+  public.einsatz_starten(uuid, text, text, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
+  public.taegliche_belohnung()
   to authenticated;
 grant execute on function public.regeln_laden(), public.bestenliste(int) to anon, authenticated;

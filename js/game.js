@@ -130,6 +130,109 @@ function kopfAktualisieren() {
   $("#spielerLevel").textContent = `Lv ${lv}`;
   $("#levelBalken").style.width = `${((p.xp - von) / (bis - von)) * 100}%`;
   $("#spielerLevel").parentElement.title = `${zahl(p.xp - von)} / ${zahl(bis - von)} Punkte bis Level ${lv + 1}`;
+  bonusKnopfAktualisieren();
+}
+
+// ---------- Tägliche Belohnung ----------
+// Ein Tag zählt nach deutscher Zeit. Online entscheidet der Server, hier wird nur angezeigt.
+const heuteBerlin = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date(zeitJetzt()));
+function tagDavor(tag) {
+  const d = new Date(tag + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Liefert { verfuegbar, serie }: serie = Tage am Stück, die bisher abgeholt wurden (0 = Serie gerissen)
+function bonusLage(p) {
+  const heute = heuteBerlin();
+  let letzter, serie;
+  if (Online.aktiv) {
+    const b = p.bonus || {};
+    letzter = b.abgeholt ? b.heute : b.serie > 0 ? tagDavor(b.heute) : null;
+    serie = b.serie || 0;
+  } else {
+    const b = p.bonusLokal || {};
+    letzter = b.tag;
+    serie = b.serie || 0;
+  }
+  const abgeholt = letzter === heute;
+  const laeuft = abgeholt || letzter === tagDavor(heute);
+  return { verfuegbar: !abgeholt, serie: laeuft ? serie : 0 };
+}
+
+// Online erst, wenn die Datenbank die Belohnung kennt (setup.sql ausgeführt)
+const bonusAktiv = (p) => !!(p && CONFIG.taeglich && (!Online.aktiv || p.bonus));
+
+function bonusFuerTag(tagNr) {
+  const t = CONFIG.taeglich;
+  const i = (tagNr - 1) % t.geld.length;
+  return { geld: t.geld[i], xp: t.xp[i] };
+}
+
+function bonusKnopfAktualisieren() {
+  const p = spieler();
+  const knopf = $("#bonusKnopf");
+  if (!bonusAktiv(p)) return knopf.classList.add("versteckt");
+  const lage = bonusLage(p);
+  knopf.classList.remove("versteckt");
+  knopf.classList.toggle("bereit", lage.verfuegbar);
+  knopf.title = lage.verfuegbar ? "Tägliche Belohnung abholen!" : `Tägliche Belohnung: ${lage.serie} Tage am Stück`;
+}
+
+function bonusDialog(gerade) {
+  const lage = bonusLage(spieler());
+  const tagNr = lage.verfuegbar ? lage.serie + 1 : lage.serie; // der Tag, um den es heute geht
+  const wochenStart = Math.floor((tagNr - 1) / CONFIG.taeglich.geld.length) * CONFIG.taeglich.geld.length;
+  const kaestchen = CONFIG.taeglich.geld
+    .map((_, i) => {
+      const d = wochenStart + i + 1;
+      const b = bonusFuerTag(d);
+      const art = d < tagNr || (d === tagNr && !lage.verfuegbar) ? "erledigt" : d === tagNr ? "heute" : "";
+      return `<div class="bonus-tag ${art}">
+        <div class="klein">Tag ${d}</div>
+        <div class="bonus-symbol">${art === "erledigt" ? "✅" : i === CONFIG.taeglich.geld.length - 1 ? "🏆" : "🎁"}</div>
+        <div>💶 ${zahl(b.geld)}</div><div class="klein">⭐ ${zahl(b.xp)}</div>
+      </div>`;
+    })
+    .join("");
+  const text = lage.verfuegbar
+    ? lage.serie
+      ? `Du bist seit <b>${lage.serie} ${lage.serie === 1 ? "Tag" : "Tagen"}</b> am Stück dabei. Hol dir die Belohnung für Tag ${tagNr}!`
+      : "Komm jeden Tag vorbei, dann steigt die Belohnung. Lässt du einen Tag aus, beginnt die Serie wieder bei Tag 1."
+    : gerade
+      ? `🎉 <b>+💶 ${zahl(gerade.geld)} · +⭐ ${zahl(gerade.xp)}</b> gutgeschrieben. Morgen gibt es die Belohnung für Tag ${tagNr + 1}.`
+      : `Heute schon abgeholt. Morgen gibt es die Belohnung für Tag ${tagNr + 1}, wenn du wiederkommst.`;
+  dialogZeigen(`
+    <h2>🎁 Tägliche Belohnung</h2>
+    <p>${text}</p>
+    <div class="bonus-tage">${kaestchen}</div>
+    <div class="knoepfe">
+      <button class="btn" id="bonusZu">${lage.verfuegbar ? "Später" : "Schließen"}</button>
+      ${lage.verfuegbar ? '<button class="btn primaer" id="bonusLos">Abholen</button>' : ""}
+    </div>`);
+  $("#bonusZu").onclick = dialogSchliessen;
+  if (lage.verfuegbar) $("#bonusLos").onclick = bonusAbholen;
+}
+
+async function bonusAbholen() {
+  $("#bonusLos").disabled = true;
+  let b;
+  if (Online.aktiv) {
+    const antwort = await serverAktion("taegliche_belohnung");
+    if (!antwort) return dialogSchliessen();
+    b = antwort.belohnung;
+  } else {
+    const p = spieler();
+    const lage = bonusLage(p);
+    if (!lage.verfuegbar) return dialogSchliessen();
+    b = { ...bonusFuerTag(lage.serie + 1), serie: lage.serie + 1 };
+    punkteGeben(b.geld, b.xp, "bonus");
+    p.bonusLokal = { tag: heuteBerlin(), serie: b.serie };
+    speichern();
+    allesNeuZeichnen();
+  }
+  toast(`🎁 Tägliche Belohnung (Tag ${b.serie}): +💶 ${zahl(b.geld)} · +⭐ ${zahl(b.xp)}`);
+  bonusDialog(b);
 }
 
 // ---------- Toasts ----------
@@ -961,6 +1064,7 @@ function allesNeuZeichnen() {
 async function start() {
   karteStarten();
   document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => bereichZeigen(t.dataset.ziel)));
+  $("#bonusKnopf").onclick = () => bonusDialog();
   $("#spielerName").onclick = () => (Online.aktiv ? Online.kontoDialog() : profilDialog(false));
 
   if (Online.aktiv) {
@@ -981,11 +1085,13 @@ async function start() {
   } else {
     einsaetzePruefen(); // Einsätze, die beendet wurden, während das Spiel zu war
     allesNeuZeichnen();
+    if (bonusAktiv(spieler()) && bonusLage(spieler()).verfuegbar) setTimeout(bonusDialog, 800);
   }
 
   setInterval(() => {
     if (einsaetzePruefen()) allesNeuZeichnen();
     else countdownsAktualisieren();
+    bonusKnopfAktualisieren(); // nach Mitternacht wieder anbieten
   }, 1000);
   setInterval(fahrzeugeAufKarte, 250);
 }
