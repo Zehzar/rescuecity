@@ -1,0 +1,9 @@
+# Netlify: Das Spiel braucht keinen Build-Schritt, die Dateien werden direkt ausgeliefert.
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
