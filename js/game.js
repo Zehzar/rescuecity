@@ -311,12 +311,70 @@ function karteStarten() {
   karte.on("click", (e) => {
     if (bauModus) wacheBauenDialog(e.latlng);
   });
+  karte.on("moveend", krankenhaeuserZeichnen);
+  krankenhaeuserZeichnen();
 
   $("#bauModusBtn").onclick = () => setBauModus(!bauModus);
   $("#bauAbbrechen").onclick = (e) => {
     e.preventDefault();
     setBauModus(false);
   };
+}
+
+// ---------- Krankenhäuser ----------
+// KRANKENHAEUSER kommt aus js/krankenhaeuser.js: [[lat, lng, "Name"], ...] (Daten © OpenStreetMap-Mitwirkende)
+const krankenhausListe = typeof KRANKENHAEUSER !== "undefined" ? KRANKENHAEUSER : [];
+let krankenhausEbene = null;
+const krankenhausIcon = L.divIcon({ className: "", html: '<div class="kh-marker">H</div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+
+function krankenhaeuserZeichnen() {
+  if (!krankenhausEbene) krankenhausEbene = L.layerGroup().addTo(karte);
+  krankenhausEbene.clearLayers();
+  if (karte.getZoom() < CONFIG.karte.krankenhausAbZoom) return;
+  const sicht = karte.getBounds().pad(0.2);
+  krankenhausListe.forEach(([lat, lng, name]) => {
+    if (!sicht.contains([lat, lng])) return;
+    L.marker([lat, lng], { icon: krankenhausIcon, zIndexOffset: -200, keyboard: false })
+      .bindTooltip(`🏥 ${esc(name)}`, { direction: "top", offset: [0, -8] })
+      .addTo(krankenhausEbene);
+  });
+}
+
+// Entfernung in km (für kurze und mittlere Strecken genau genug)
+function kmZwischen(a, b) {
+  const x = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) * Math.PI) / 360);
+  const y = b.lat - a.lat;
+  return Math.sqrt(x * x + y * y) * 111.2;
+}
+
+// Krankenhaus für einen Transport: so weit vom Einsatzort, wie das Fahrzeug in der Transportzeit fährt,
+// und so weit von der Wache, wie es für die Rückfahrt passt
+function krankenhausWaehlen(w, ziel, minuten) {
+  if (!krankenhausListe.length) return null;
+  const p = CONFIG.einsatzPhasenTransport;
+  const kmProPhase = (anteil) => ((minuten * anteil) / 60) * CONFIG.fahrgeschwindigkeitKmh / CONFIG.routing.umwegFaktor;
+  const hin = kmProPhase(p.transport);
+  const zurueck = kmProPhase(p.rueckfahrt);
+  let bestes = null;
+  let besteWertung = Infinity;
+  for (const [lat, lng, name] of krankenhausListe) {
+    const kh = { lat, lng };
+    const wertung = Math.abs(kmZwischen(ziel, kh) - hin) / hin + Math.abs(kmZwischen(kh, w) - zurueck) / zurueck;
+    if (wertung < besteWertung) {
+      besteWertung = wertung;
+      bestes = { name, lat, lng };
+    }
+  }
+  return bestes;
+}
+
+const transportChance = (typ) => (CONFIG.transport && CONFIG.transport.chance[typ]) || 0;
+
+// Straßenrouten Einsatzort -> Krankenhaus -> Wache holen (null = Luftlinie)
+async function transportRouten(w, e) {
+  const holen = (a, b) => routeHolen(a, b).catch(() => null);
+  const [routeKh, routeHeim] = await Promise.all([holen(e.ziel, e.kh), holen(e.kh, w)]);
+  return { routeKh, routeHeim };
 }
 
 function setBauModus(an) {
@@ -438,37 +496,53 @@ function fahrzeugKaufen(w, typ) {
   allesNeuZeichnen();
 }
 
-function einsatzBelohnung(typ, dauerKey) {
+function einsatzBelohnung(typ, dauerKey, transport = false) {
   const t = fahrzeugTyp(typ);
   const d = dauerInfo(dauerKey);
+  const faktor = t.faktor * (transport && CONFIG.transport ? 1 + CONFIG.transport.bonus : 1);
   return {
-    geld: Math.round(d.minuten * d.proMinute * t.faktor),
-    xp: Math.round(d.minuten * d.xpProMinute * t.faktor),
+    geld: Math.round(d.minuten * d.proMinute * faktor),
+    xp: Math.round(d.minuten * d.xpProMinute * faktor),
   };
 }
 
 async function einsatzStarten(fahrzeug, dauerKey) {
   const d = dauerInfo(dauerKey);
-  const b = einsatzBelohnung(fahrzeug.typ, dauerKey);
   const w = wacheVon(fahrzeug);
   const { ziel, route } = await zielMitRoute(w, d.minuten);
   if (fahrzeug.einsatz) return; // zwischenzeitlich schon losgeschickt
   const stichwort = zufall(CONFIG.stichworte[fahrzeug.typ] || ["Einsatz"]);
+  // Mögliches Krankenhaus; ob wirklich transportiert wird, entscheidet online der Server
+  const kh = transportChance(fahrzeug.typ) > 0 ? krankenhausWaehlen(w, ziel, d.minuten) : null;
   if (Online.aktiv) {
-    await serverAktion("einsatz_starten", { p_fahrzeug: fahrzeug.id, p_dauer: dauerKey, p_stichwort: stichwort, p_ziel: ziel, p_route: route });
+    const parameter = { p_fahrzeug: fahrzeug.id, p_dauer: dauerKey, p_stichwort: stichwort, p_ziel: ziel, p_route: route };
+    if (CONFIG.transport) parameter.p_kh = kh;
+    const antwort = await serverAktion("einsatz_starten", parameter);
+    const neu = antwort && spieler().stationen.flatMap((s) => s.fahrzeuge).find((x) => x.id === fahrzeug.id);
+    if (neu && neu.einsatz && neu.einsatz.kh) {
+      const r = await transportRouten(w, neu.einsatz);
+      if (r.routeKh || r.routeHeim)
+        serverAktion("einsatz_routen", { p_fahrzeug: fahrzeug.id, p_route_kh: r.routeKh, p_route_heim: r.routeHeim });
+    }
     return;
   }
+  const transport = !!kh && Math.random() < transportChance(fahrzeug.typ);
+  const b = einsatzBelohnung(fahrzeug.typ, dauerKey, transport);
   const start = Date.now();
   fahrzeug.einsatz = {
     stichwort,
     ziel,
     route,
+    kh: transport ? kh : null,
+    routeKh: null,
+    routeHeim: null,
     dauerKey,
     start,
     ende: start + (d.minuten * 60000) / CONFIG.zeitFaktor,
     geld: b.geld,
     xp: b.xp,
   };
+  if (transport) Object.assign(fahrzeug.einsatz, await transportRouten(w, fahrzeug.einsatz));
   speichern();
   allesNeuZeichnen();
 }
@@ -549,30 +623,48 @@ const STATUS = {
   2: { text: "Status 2 · Auf der Wache", farbe: "#607d8b" },
   3: { text: "Status 3 · Anfahrt zum Einsatzort", farbe: "#e53935" },
   4: { text: "Status 4 · Am Einsatzort", farbe: "#fb8c00" },
+  7: { text: "Status 7 · Patient aufgenommen, Transport ins Krankenhaus", farbe: "#8e24aa" },
+  8: { text: "Status 8 · Am Krankenhaus", farbe: "#5d4037" },
 };
+
+// Punkt auf der Strecke a -> b (Luftlinie) bei Anteil x
+const aufLinie = (a, b, x) => ({ lat: a.lat + (b.lat - a.lat) * x, lng: a.lng + (b.lng - a.lng) * x });
 
 // Liefert Status und aktuelle Position eines Fahrzeugs
 function fahrzeugLage(f, w) {
   const e = f.einsatz;
   if (!e) return { status: 2, lat: w.lat, lng: w.lng };
   if (!e.ziel) e.ziel = zufallsZiel(w, dauerInfo(e.dauerKey).minuten); // ältere Spielstände
-  const { anfahrt, vorOrt } = CONFIG.einsatzPhasen;
   const t = Math.min(1, Math.max(0, (zeitJetzt() - e.start) / (e.ende - e.start)));
-  const zwischen = (a) =>
-    e.route ? aufRoute(f.id, e.route, a) : { lat: w.lat + (e.ziel.lat - w.lat) * a, lng: w.lng + (e.ziel.lng - w.lng) * a };
+  const zwischen = (a) => (e.route ? aufRoute(f.id + ":hin", e.route, a) : aufLinie(w, e.ziel, a));
+  if (e.kh) {
+    // Mit Transport: Wache -> Einsatzort -> Krankenhaus -> Wache
+    const p = CONFIG.einsatzPhasenTransport;
+    const g1 = p.anfahrt, g2 = g1 + p.vorOrt, g3 = g2 + p.transport, g4 = g3 + p.amKrankenhaus;
+    if (t < g1) return { status: 3, ...zwischen(t / g1) };
+    if (t < g2) return { status: 4, ...e.ziel };
+    if (t < g3) {
+      const x = (t - g2) / p.transport;
+      return { status: 7, ...(e.routeKh ? aufRoute(f.id + ":kh", e.routeKh, x) : aufLinie(e.ziel, e.kh, x)) };
+    }
+    if (t < g4) return { status: 8, lat: e.kh.lat, lng: e.kh.lng };
+    const x = (t - g4) / (1 - g4);
+    return { status: 1, ...(e.routeHeim ? aufRoute(f.id + ":heim", e.routeHeim, x) : aufLinie(e.kh, w, x)) };
+  }
+  const { anfahrt, vorOrt } = CONFIG.einsatzPhasen;
   if (t < anfahrt) return { status: 3, ...zwischen(t / anfahrt) };
   if (t < anfahrt + vorOrt) return { status: 4, ...e.ziel };
   return { status: 1, ...zwischen(1 - (t - anfahrt - vorOrt) / (1 - anfahrt - vorOrt)) };
 }
 
-// Position auf einer Route bei Anteil a (0 = Wache, 1 = Einsatzort), nach gefahrener Strecke
+// Position auf einer Route bei Anteil a (0 = Anfang, 1 = Ende), nach gefahrener Strecke
 const routenLaengen = {};
-function aufRoute(fid, route, a) {
-  let c = routenLaengen[fid];
+function aufRoute(schluessel, route, a) {
+  let c = routenLaengen[schluessel];
   if (!c || c.route !== route) {
     const summe = [0];
     for (let i = 1; i < route.length; i++) summe.push(summe[i - 1] + L.latLng(route[i - 1]).distanceTo(route[i]));
-    c = routenLaengen[fid] = { route, summe };
+    c = routenLaengen[schluessel] = { route, summe };
   }
   const ziel = a * c.summe[c.summe.length - 1];
   let i = 1;
@@ -582,7 +674,33 @@ function aufRoute(fid, route, a) {
   return { lat: route[i - 1][0] + (route[i][0] - route[i - 1][0]) * x, lng: route[i - 1][1] + (route[i][1] - route[i - 1][1]) * x };
 }
 
-let fahrzeugMarker = {}; // id -> { auto, ziel, linie }
+let fahrzeugMarker = {}; // id -> { auto, linien, kennung, status }
+
+// Einsatzort, Krankenhaus und Strecken eines Einsatzes als eine Kartenebene
+function einsatzLinien(e, w, t) {
+  const strecke = (punkte, a, b, stil = {}) =>
+    punkte
+      ? L.polyline(punkte, { color: t.farbe, weight: 4, opacity: 0.55, ...stil })
+      : L.polyline([[a.lat, a.lng], [b.lat, b.lng]], { color: t.farbe, weight: 2, opacity: 0.5, dashArray: "6 6", ...stil });
+  const ebene = L.layerGroup([
+    L.marker([e.ziel.lat, e.ziel.lng], {
+      icon: L.divIcon({ className: "", html: '<div class="einsatz-marker">🚨</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+      zIndexOffset: -100,
+    }).bindTooltip(`${esc(e.stichwort)}`, { direction: "top", offset: [0, -14] }),
+    strecke(e.route, w, e.ziel),
+  ]);
+  if (e.kh) {
+    ebene.addLayer(strecke(e.routeKh, e.ziel, e.kh, { dashArray: "10 6" }));
+    ebene.addLayer(strecke(e.routeHeim, e.kh, w, { opacity: 0.3 }));
+    ebene.addLayer(
+      L.marker([e.kh.lat, e.kh.lng], {
+        icon: L.divIcon({ className: "", html: '<div class="kh-marker ziel">H</div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+        zIndexOffset: 400,
+      }).bindTooltip(`🏥 ${esc(e.kh.name)}`, { direction: "top", offset: [0, -12] })
+    );
+  }
+  return ebene.addTo(karte);
+}
 
 function fahrzeugeAufKarte() {
   const p = spieler();
@@ -590,23 +708,13 @@ function fahrzeugeAufKarte() {
   if (p) {
     p.stationen.forEach((w) =>
       w.fahrzeuge.forEach((f) => {
-        if (!f.einsatz) return;
+        const e = f.einsatz;
+        if (!e) return;
         aktiv.add(f.id);
         const lage = fahrzeugLage(f, w);
         const t = fahrzeugTyp(f.typ);
         let m = fahrzeugMarker[f.id];
         if (!m) {
-          const ziel = L.marker([f.einsatz.ziel.lat, f.einsatz.ziel.lng], {
-            icon: L.divIcon({ className: "", html: '<div class="einsatz-marker">🚨</div>', iconSize: [30, 30], iconAnchor: [15, 15] }),
-            zIndexOffset: -100,
-          })
-            .bindTooltip(`${esc(f.einsatz.stichwort)}`, { direction: "top", offset: [0, -14] })
-            .addTo(karte);
-          const linie = f.einsatz.route
-            ? L.polyline(f.einsatz.route, { color: t.farbe, weight: 4, opacity: 0.55 }).addTo(karte)
-            : L.polyline([[w.lat, w.lng], [f.einsatz.ziel.lat, f.einsatz.ziel.lng]], {
-                color: t.farbe, weight: 2, opacity: 0.5, dashArray: "6 6",
-              }).addTo(karte);
           const auto = L.marker([lage.lat, lage.lng], { icon: L.divIcon({ className: "", html: "", iconSize: [52, 22], iconAnchor: [26, 11] }), zIndexOffset: 500 })
             .bindTooltip(`${esc(fahrzeugName(f))} · ${esc(w.name)}`, { direction: "top", offset: [0, -10] })
             .on("click", () => {
@@ -614,7 +722,14 @@ function fahrzeugeAufKarte() {
               allesNeuZeichnen();
             })
             .addTo(karte);
-          m = fahrzeugMarker[f.id] = { auto, ziel, linie, status: null };
+          m = fahrzeugMarker[f.id] = { auto, linien: null, kennung: null, status: null };
+        }
+        // Neu zeichnen, wenn ein neuer Einsatz läuft oder Straßenrouten nachgekommen sind
+        const kennung = [e.start, !!e.route, !!e.kh, !!e.routeKh, !!e.routeHeim].join();
+        if (m.kennung !== kennung) {
+          if (m.linien) m.linien.remove();
+          m.linien = einsatzLinien(e, w, t);
+          m.kennung = kennung;
         }
         m.auto.setLatLng([lage.lat, lage.lng]);
         if (m.status !== lage.status) {
@@ -635,8 +750,7 @@ function fahrzeugeAufKarte() {
     if (aktiv.has(fid)) return;
     const m = fahrzeugMarker[fid];
     m.auto.remove();
-    m.ziel.remove();
-    m.linie.remove();
+    if (m.linien) m.linien.remove();
     delete fahrzeugMarker[fid];
   });
 }
@@ -720,6 +834,7 @@ function fahrzeugHtml(f) {
       <div class="fahrzeug-status">🚨 ${esc(f.einsatz.stichwort)} · ${d.name} · noch <b data-rest="${f.einsatz.ende}">…</b></div>
       <div class="fahrzeug-status"><span class="status-punkt" data-fms="${f.id}"></span></div>
       <div class="fortschritt"><div data-start="${f.einsatz.start}" data-ende="${f.einsatz.ende}"></div></div>
+      ${f.einsatz.kh ? `<div class="klein" style="margin-top:4px">🏥 Transport: ${esc(f.einsatz.kh.name)}</div>` : ""}
       <div class="klein" style="margin-top:4px">Belohnung: 💶 ${zahl(f.einsatz.geld)} · ⭐ ${zahl(f.einsatz.xp)}</div>`;
   } else {
     const optionen = CONFIG.einsatzDauern
@@ -733,7 +848,12 @@ function fahrzeugHtml(f) {
       <div class="einsatz-wahl">
         <select data-dauer="${f.id}">${optionen}</select>
         <button class="btn primaer klein" data-losschicken="${f.id}">Losschicken</button>
-      </div>`;
+      </div>
+      ${
+        transportChance(f.typ) > 0 && krankenhausListe.length
+          ? `<div class="klein" style="margin-top:4px">🏥 ${transportChance(f.typ) >= 1 ? "Immer" : `In ${Math.round(transportChance(f.typ) * 100)} % der Einsätze`} mit Transport ins Krankenhaus: +${Math.round(CONFIG.transport.bonus * 100)} %</div>`
+          : ""
+      }`;
   }
   return `
     <div class="fahrzeug">

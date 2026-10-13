@@ -21,6 +21,8 @@ const CONFIG = {
     mapTilerAttribution:
       '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende',
     osmUrl: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    // Krankenhäuser (aus js/krankenhaeuser.js) erscheinen ab dieser Zoomstufe auf der Karte
+    krankenhausAbZoom: 10,
     osmAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende',
   },
 
@@ -38,6 +40,16 @@ const CONFIG = {
   // Ablauf eines Einsatzes (Anteile der Gesamtdauer, zusammen 1.0)
   // Status 3 = Anfahrt, Status 4 = am Einsatzort, Status 1 = Rückfahrt, danach Status 2 auf der Wache
   einsatzPhasen: { anfahrt: 0.4, vorOrt: 0.2, rueckfahrt: 0.4 },
+
+  // Ablauf mit Transport ins Krankenhaus: Status 3, 4, dann Status 7 = Transport, Status 8 = am Krankenhaus, Status 1
+  einsatzPhasenTransport: { anfahrt: 0.4, vorOrt: 0.1, transport: 0.2, amKrankenhaus: 0.05, rueckfahrt: 0.25 },
+
+  // Wie oft ein Fahrzeugtyp den Patienten ins Krankenhaus bringt (0 bis 1) und Aufschlag auf Geld und Punkte.
+  // Online gelten die Werte aus der Supabase-Tabelle regeln.
+  transport: {
+    chance: { KTW: 1, RTW: 0.7, NEF: 0, ITW: 1 },
+    bonus: 0.2,
+  },
 
   // Durchschnittsgeschwindigkeit der Fahrzeuge in km/h.
   // Der Einsatzort liegt so weit weg, wie das Fahrzeug in der Anfahrtszeit fährt

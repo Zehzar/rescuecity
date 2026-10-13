@@ -79,6 +79,10 @@ on conflict (id) do nothing;
 update public.regeln
    set daten = daten || '{"taeglich":{"geld":[250,350,500,650,800,1000,2000],"xp":[10,15,20,25,30,40,100]}}'::jsonb
  where id = 1 and not (daten ? 'taeglich');
+-- Transport ins Krankenhaus: Wahrscheinlichkeit je Fahrzeugtyp (0 bis 1) und Aufschlag auf Geld und Punkte
+update public.regeln
+   set daten = daten || '{"transport":{"chance":{"KTW":1,"RTW":0.7,"NEF":0,"ITW":1},"bonus":0.2}}'::jsonb
+ where id = 1 and not (daten ? 'transport');
 
 -- ---------- Spielstand ----------
 create table if not exists public.spieler_stand (
@@ -123,6 +127,10 @@ create table if not exists public.fahrzeuge (
   erstellt timestamptz not null default clock_timestamp()
 );
 create index if not exists fahrzeuge_user on public.fahrzeuge (user_id);
+-- Transport ins Krankenhaus (e_kh = Krankenhaus, Routen nur fürs Aussehen)
+alter table public.fahrzeuge add column if not exists e_kh jsonb;
+alter table public.fahrzeuge add column if not exists e_route_kh jsonb;
+alter table public.fahrzeuge add column if not exists e_route_heim jsonb;
 create index if not exists fahrzeuge_wache on public.fahrzeuge (wache_id);
 
 -- ---------- Quiz ----------
@@ -211,7 +219,8 @@ begin
   if n > 0 then
     update public.fahrzeuge
        set e_dauer = null, e_start = null, e_ende = null, e_stichwort = null,
-           e_ziel = null, e_route = null, e_geld = null, e_xp = null
+           e_ziel = null, e_route = null, e_geld = null, e_xp = null,
+           e_kh = null, e_route_kh = null, e_route_heim = null
      where user_id = uid and e_ende <= now();
     update public.spieler_stand
        set geld = geld + g, xp = xp + x, einsaetze = einsaetze + n, xp_einsaetze = xp_einsaetze + x
@@ -256,7 +265,8 @@ returns jsonb language sql stable security definer set search_path = public as $
             'einsatz', case when f.e_ende is null then null else jsonb_build_object(
               'stichwort', f.e_stichwort, 'dauerKey', f.e_dauer,
               'start', public.rc_ms(f.e_start), 'ende', public.rc_ms(f.e_ende),
-              'ziel', f.e_ziel, 'route', f.e_route, 'geld', f.e_geld, 'xp', f.e_xp) end)
+              'ziel', f.e_ziel, 'route', f.e_route, 'geld', f.e_geld, 'xp', f.e_xp,
+              'kh', f.e_kh, 'routeKh', f.e_route_kh, 'routeHeim', f.e_route_heim) end)
             order by f.erstellt)
           from public.fahrzeuge f where f.wache_id = w.id), '[]'::jsonb))
         order by w.erstellt)
@@ -406,8 +416,10 @@ begin
 end;
 $$;
 
--- Ziel und Route kommen vom Browser (nur fürs Aussehen), Dauer und Belohnung rechnet der Server
-create or replace function public.einsatz_starten(p_fahrzeug uuid, p_dauer text, p_stichwort text, p_ziel jsonb, p_route jsonb)
+-- Ziel, Route und Krankenhaus kommen vom Browser (nur fürs Aussehen).
+-- Dauer, Belohnung und ob ein Transport stattfindet, entscheidet der Server.
+drop function if exists public.einsatz_starten(uuid, text, text, jsonb, jsonb);
+create or replace function public.einsatz_starten(p_fahrzeug uuid, p_dauer text, p_stichwort text, p_ziel jsonb, p_route jsonb, p_kh jsonb default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
@@ -417,6 +429,8 @@ declare
   d jsonb;
   t jsonb;
   minuten numeric;
+  transport boolean;
+  faktor numeric;
 begin
   perform public.rc_sperren(uid);
   fertig := public.rc_abrechnen(uid);
@@ -433,6 +447,10 @@ begin
   end if;
   select x into t from jsonb_array_elements(r -> 'fahrzeuge') x where x ->> 'typ' = f.typ;
   minuten := (d ->> 'minuten')::numeric;
+  transport := coalesce(jsonb_typeof(p_kh) = 'object'
+    and jsonb_typeof(p_kh -> 'lat') = 'number' and jsonb_typeof(p_kh -> 'lng') = 'number'
+    and random() < coalesce((r -> 'transport' -> 'chance' ->> f.typ)::numeric, 0), false);
+  faktor := (t ->> 'faktor')::numeric * case when transport then 1 + coalesce((r -> 'transport' ->> 'bonus')::numeric, 0) else 1 end;
   update public.fahrzeuge set
     e_dauer = p_dauer,
     e_start = now(),
@@ -440,10 +458,29 @@ begin
     e_stichwort = left(coalesce(p_stichwort, 'Einsatz'), 60),
     e_ziel = case when jsonb_typeof(p_ziel) = 'object' then p_ziel end,
     e_route = case when jsonb_typeof(p_route) = 'array' and jsonb_array_length(p_route) <= 1000 then p_route end,
-    e_geld = round(minuten * (d ->> 'proMinute')::numeric * (t ->> 'faktor')::numeric),
-    e_xp = round(minuten * (d ->> 'xpProMinute')::numeric * (t ->> 'faktor')::numeric)
+    e_geld = round(minuten * (d ->> 'proMinute')::numeric * faktor),
+    e_xp = round(minuten * (d ->> 'xpProMinute')::numeric * faktor),
+    e_kh = case when transport then jsonb_build_object(
+      'name', left(coalesce(p_kh ->> 'name', 'Krankenhaus'), 100),
+      'lat', (p_kh ->> 'lat')::double precision, 'lng', (p_kh ->> 'lng')::double precision) end,
+    e_route_kh = null,
+    e_route_heim = null
   where id = f.id;
   return public.rc_antwort(uid, fertig);
+end;
+$$;
+
+-- Straßenrouten für den Transport nachreichen (nur fürs Aussehen)
+create or replace function public.einsatz_routen(p_fahrzeug uuid, p_route_kh jsonb, p_route_heim jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+begin
+  update public.fahrzeuge set
+    e_route_kh = case when jsonb_typeof(p_route_kh) = 'array' and jsonb_array_length(p_route_kh) <= 1000 then p_route_kh end,
+    e_route_heim = case when jsonb_typeof(p_route_heim) = 'array' and jsonb_array_length(p_route_heim) <= 1000 then p_route_heim end
+  where id = p_fahrzeug and user_id = uid and e_kh is not null and e_ende > now();
+  return public.rc_antwort(uid, '[]'::jsonb);
 end;
 $$;
 
@@ -572,12 +609,12 @@ revoke execute on function public.rc_heute(), public.rc_regeln(), public.rc_sper
 
 revoke execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
-  public.einsatz_starten(uuid, text, text, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
+  public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
   public.taegliche_belohnung()
   from public, anon;
 grant execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
-  public.einsatz_starten(uuid, text, text, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
+  public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(), public.quiz_antwort(bigint, int),
   public.taegliche_belohnung()
   to authenticated;
 grant execute on function public.regeln_laden(), public.bestenliste(int) to anon, authenticated;

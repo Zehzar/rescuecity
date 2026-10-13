@@ -176,6 +176,7 @@ const Online = (() => {
     CONFIG.fahrzeuge = r.fahrzeuge.map((f) => ({ name: f.typ, farbe: "#555", ...(CONFIG.fahrzeuge.find((x) => x.typ === f.typ) || {}), ...f }));
     Object.assign(CONFIG.quiz, r.quiz);
     if (r.taeglich) CONFIG.taeglich = r.taeglich;
+    CONFIG.transport = r.transport || null; // fehlt, solange setup.sql noch nicht neu ausgeführt wurde
   }
 
   // ---------- Start ----------

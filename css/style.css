@@ -234,3 +234,10 @@ body {
 @media (max-width: 560px) { .bonus-tage { grid-template-columns: repeat(4, 1fr); } }
 .dialog:has(.bonus-tage) { max-width: 560px; }
 .bonus-tag div { white-space: nowrap; }
+
+/* ============ Krankenhäuser ============ */
+.kh-marker {
+  width: 18px; height: 18px; border-radius: 4px; background: #1565c0; color: #fff; border: 2px solid #fff;
+  font: 700 11px/14px system-ui, sans-serif; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.35);
+}
+.kh-marker.ziel { width: 24px; height: 24px; font-size: 14px; line-height: 20px; background: #8e24aa; }

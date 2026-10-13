@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Krankenhäuser laden – RescueCity</title>
+  <link rel="stylesheet" href="../css/recht.css">
+  <style>
+    button { font-size: 16px; padding: 10px 18px; border: 0; border-radius: 8px; background: #c62828; color: #fff; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    #log { white-space: pre-wrap; background: #f3f4f6; border-radius: 8px; padding: 12px; font: 13px/1.5 ui-monospace, monospace; min-height: 60px; }
+  </style>
+</head>
+<body>
+  <div class="seite">
+    <h1>Krankenhäuser laden</h1>
+    <p>Diese Seite holt alle Krankenhäuser in Deutschland und speichert sie als <b>krankenhaeuser.js</b>.
+      Zuerst wird Wikidata gefragt (dauert meist unter einer Minute). Klappt das nicht, fragt die Seite
+      OpenStreetMap in 16 Teilen ab, das dauert ein paar Minuten.</p>
+    <p><button id="los">Krankenhäuser laden</button></p>
+    <div id="log">Bereit.</div>
+  </div>
+<script>
+// Mehrere öffentliche Overpass-Server, falls einer ausgelastet ist
+const SERVER = [
+  "https://overpass-api.de/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
+// Deutschland in 4 x 4 Kacheln, damit jede Abfrage klein bleibt (Ränder der Nachbarländer kommen mit)
+const SUED = 47.2, NORD = 55.1, WEST = 5.8, OST = 15.1, N = 4;
+const KACHELN = [];
+for (let i = 0; i < N; i++)
+  for (let j = 0; j < N; j++) {
+    const s = SUED + ((NORD - SUED) * i) / N, n = SUED + ((NORD - SUED) * (i + 1)) / N;
+    const w = WEST + ((OST - WEST) * j) / N, o = WEST + ((OST - WEST) * (j + 1)) / N;
+    KACHELN.push(`${s.toFixed(3)},${w.toFixed(3)},${n.toFixed(3)},${o.toFixed(3)}`);
+  }
+const abfrage = (bbox) => `[out:json][timeout:90];nwr["amenity"="hospital"](${bbox});out tags center;`;
+// Keine Akutkrankenhäuser (gleiche Regeln wie tools/kh_konvertieren.py)
+const RAUS = /psychiatr|hospiz|tagesklinik|reha|kurklinik|tierklinik|tierarzt|forensi|sucht/i;
+
+const log = (t) => (document.getElementById("log").textContent += "\n" + t);
+
+// Wikidata: alle Krankenhäuser in Deutschland mit Koordinaten, ohne geschlossene (Daten CC0)
+const WIKIDATA = `SELECT ?item ?itemLabel ?coord WHERE {
+  ?item wdt:P31/wdt:P279* wd:Q16917; wdt:P17 wd:Q183; wdt:P625 ?coord.
+  FILTER NOT EXISTS { ?item wdt:P576 ?ende. }
+  FILTER NOT EXISTS { ?item wdt:P3999 ?geschlossen. }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en". }
+}`;
+
+async function wikidataHolen() {
+  const url = "https://query.wikidata.org/sparql?format=json&query=" + encodeURIComponent(WIKIDATA);
+  const antwort = await fetch(url, { headers: { Accept: "application/sparql-results+json" } });
+  if (!antwort.ok) throw new Error(`Fehler ${antwort.status}`);
+  const daten = await antwort.json();
+  const elements = [];
+  for (const z of daten.results.bindings) {
+    const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(z.coord.value);
+    const name = z.itemLabel.value;
+    if (!m || /^Q\d+$/.test(name)) continue; // ohne Namen
+    elements.push({ lat: +m[2], lon: +m[1], tags: { name } });
+  }
+  return { elements, quelle: "Wikidata (CC0)", stand: new Date().toISOString().slice(0, 10) };
+}
+
+function umwandeln(daten) {
+  const gesehen = new Set();
+  const liste = [];
+  let weg = 0;
+  for (const e of daten.elements) {
+    const t = e.tags || {};
+    const lat = e.lat ?? e.center?.lat;
+    const lng = e.lon ?? e.center?.lon;
+    const name = (t.name || "").trim();
+    if (lat == null || !name || t.emergency === "no" || RAUS.test(name) || RAUS.test(t["healthcare:speciality"] || "") || t.disused || t.abandoned) {
+      weg++;
+      continue;
+    }
+    const k = `${name.toLowerCase()}|${lat.toFixed(2)}|${lng.toFixed(2)}`;
+    if (gesehen.has(k)) { weg++; continue; }
+    gesehen.add(k);
+    liste.push([+lat.toFixed(5), +lng.toFixed(5), name.slice(0, 80)]);
+  }
+  liste.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const stand = daten.stand || (daten.osm3s?.timestamp_osm_base || "").slice(0, 10);
+  const quelle = daten.quelle || "© OpenStreetMap-Mitwirkende (ODbL), Overpass-Abfrage amenity=hospital";
+  const text =
+    `// Krankenhäuser in Deutschland, Daten: ${quelle}, Stand ${stand}\n` +
+    `// Format: [Breitengrad, Längengrad, Name]\n` +
+    `const KRANKENHAEUSER = [\n${liste.map((x) => JSON.stringify(x)).join(",\n")}\n];\n`;
+  return { text, anzahl: liste.length, weg };
+}
+
+const warten = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Eine Kachel holen, bei Fehlern der Reihe nach die anderen Server probieren
+async function kachelHolen(bbox) {
+  for (let runde = 0; runde < 2; runde++) {
+    for (const url of SERVER) {
+      try {
+        const antwort = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(abfrage(bbox)),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+        if (!antwort.ok) throw new Error(`Fehler ${antwort.status}`);
+        const daten = await antwort.json();
+        if (!Array.isArray(daten.elements)) throw new Error("unerwartete Antwort");
+        if (daten.remark && /error|timed out/i.test(daten.remark)) throw new Error(daten.remark.slice(0, 80));
+        return daten;
+      } catch (e) {
+        log(`   ${new URL(url).host}: ${e.message}`);
+        await warten(1500);
+      }
+    }
+    log("   Kurze Pause, dann noch ein Versuch …");
+    await warten(10000);
+  }
+  throw new Error("kein Server hat geantwortet");
+}
+
+document.getElementById("los").onclick = async () => {
+  const knopf = document.getElementById("los");
+  knopf.disabled = true;
+  document.getElementById("log").textContent = "Starte …";
+  let alle = null;
+  log("Frage Wikidata … (bitte warten)");
+  try {
+    const w = await wikidataHolen();
+    log(`   ${w.elements.length} Einträge`);
+    if (w.elements.length >= 500) alle = w;
+    else log("   Zu wenige, versuche OpenStreetMap.");
+  } catch (e) {
+    log(`   Wikidata: ${e.message}. Versuche OpenStreetMap.`);
+  }
+  if (!alle) try {
+    alle = { elements: [], osm3s: null };
+    for (let k = 0; k < KACHELN.length; k++) {
+      log(`Teil ${k + 1} von ${KACHELN.length} …`);
+      const daten = await kachelHolen(KACHELN[k]);
+      alle.elements.push(...daten.elements);
+      alle.osm3s = alle.osm3s || daten.osm3s;
+      log(`   ${daten.elements.length} Einträge`);
+      await warten(1000); // die Server nicht überlasten
+    }
+  } catch (e) {
+    log(`⚠️ Abgebrochen: ${e.message}. Bitte in ein paar Minuten noch einmal versuchen.`);
+    knopf.disabled = false;
+    return;
+  }
+  const { text, anzahl, weg } = umwandeln(alle);
+  if (anzahl < 500) {
+    log(`⚠️ Nur ${anzahl} Krankenhäuser gefunden, das ist zu wenig. Bitte später noch einmal versuchen.`);
+    knopf.disabled = false;
+    return;
+  }
+  log(`✅ ${anzahl} Krankenhäuser gefunden (${weg} aussortiert).`);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/javascript" }));
+  a.download = "krankenhaeuser.js";
+  a.click();
+  log("💾 Die Datei krankenhaeuser.js wurde heruntergeladen (meist im Ordner Downloads).");
+  log("Verschiebe sie nach Dokumente\\RescueCity und sag Claude Bescheid.");
+};
+</script>
+</body>
+</html>

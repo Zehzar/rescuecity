@@ -36,6 +36,12 @@ Der Spielstand wird automatisch im Browser gespeichert.
 - Einmal pro Tag (deutsche Zeit) gibt es über das 🎁 oben eine Belohnung. Jeder weitere Tag am Stück bringt mehr, Tag 7 ist der große Bonus, danach beginnt die Woche von vorn. Wer einen Tag auslässt, startet wieder bei Tag 1.
 - Die Beträge stehen online in der Tabelle **regeln** unter `taeglich` (`geld` und `xp`, je 7 Zahlen), lokal in `js/config.js`.
 
+## Krankenhäuser und Transporte
+- Echte Krankenhäuser aus OpenStreetMap stehen in `js/krankenhaeuser.js` und erscheinen als blaues **H** auf der Karte, sobald man hineinzoomt.
+- Bei einem Transport fährt das Fahrzeug Status 3 → 4 → **7** (Patient aufgenommen, Transport) → **8** (am Krankenhaus) → 1 → 2. Die Gesamtdauer bleibt gleich, ein Transport bringt mehr Geld und Punkte.
+- Wie oft welcher Fahrzeugtyp transportiert und wie groß der Aufschlag ist, steht online in der Tabelle **regeln** unter `transport` (`chance` von 0 bis 1 je Typ, `bonus` 0.2 = +20 %), lokal in `js/config.js`.
+- Liste aktualisieren: Overpass-Abfrage `amenity=hospital` für Deutschland als JSON speichern und mit `tools/kh_konvertieren.py <datei.json> js/krankenhaeuser.js` umwandeln.
+
 ## Online-Version
 - Das Spiel läuft unter https://rescuecity.netlify.app. Netlify holt sich jede Änderung auf GitHub (Zweig `main`) automatisch und stellt sie nach etwa einer Minute online.
 - `impressum.html` und `datenschutz.html` sind unten im Spiel und im Anmeldefenster verlinkt. Wenn neue Dienste dazukommen (z. B. ein eigener Mail-Anbieter), muss die Datenschutzerklärung ergänzt werden.
