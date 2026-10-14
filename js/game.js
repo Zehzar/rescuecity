@@ -646,7 +646,7 @@ let routingHinweisGezeigt = false;
 async function routeHolen(a, b) {
   if (Online.aktiv && CONFIG.routing.ueberServer) {
     // Online fragt die Supabase-Funktion "route" OpenRouteService, der Key bleibt auf dem Server
-    const daten = await Online.funktion("route", { start: a, ende: b, profil: CONFIG.routing.profil });
+    const daten = await Online.funktion(CONFIG.routing.funktion || "route", { start: a, ende: b, profil: CONFIG.routing.profil });
     const punkte = daten.features[0].geometry.coordinates.map(([lng, lat]) => [+lat.toFixed(5), +lng.toFixed(5)]);
     return punkteAusduennen(punkte, CONFIG.routing.maxPunkte);
   }

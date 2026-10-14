@@ -63,6 +63,8 @@ const CONFIG = {
     // Online (mit Supabase) fragt das Spiel die Server-Funktion "route", dort liegt der Key geheim.
     // orsKey wird dann nicht gebraucht und sollte leer bleiben, weil diese Datei öffentlich ist.
     ueberServer: true,
+    // Name (Slug) der Edge Function in Supabase, steht in ihrer Adresse: .../functions/v1/<name>
+    funktion: "smooth-action",
     profil: "driving-car",
     // Straßen sind länger als die Luftlinie. Der Einsatzort wird um diesen Faktor näher gesetzt,
     // damit die Fahrstrecke trotzdem ungefähr zur Anfahrtszeit passt.
