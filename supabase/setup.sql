@@ -90,7 +90,7 @@ update public.regeln
 -- Personal: Preis = einmalige Einstellung, gehalt = Anteil am Einsatzlohn, besatzung = wer auf welchem Fahrzeug fährt,
 -- ersatz = wer einen Platz auch besetzen darf, stufen = Einsätze für Erfahrungsstufe 1 bis 5, bonusProStufe = Aufschlag je Stufe über 1
 update public.regeln
-   set daten = daten || jsonb_build_object('personal', '{"rollen": [{"rolle": "RettSan", "name": "Rettungssanitäter/in", "kurz": "RS", "preis": 500, "gehalt": 0.05}, {"rolle": "NotSan", "name": "Notfallsanitäter/in", "kurz": "NFS", "preis": 1500, "gehalt": 0.08}, {"rolle": "NA", "name": "Notärztin/Notarzt", "kurz": "NA", "preis": 4000, "gehalt": 0.15}], "besatzung": {"KTW": ["RettSan", "RettSan"], "RTW": ["NotSan", "RettSan"], "NEF": ["NA", "RettSan"], "ITW": ["NA", "NotSan", "RettSan"]}, "ersatz": {"RettSan": ["NotSan"]}, "proStellplatz": 3, "stufen": [0, 10, 30, 75, 150], "bonusProStufe": 0.03, "start": ["NotSan", "RettSan"], "vornamen": ["Anna", "Ben", "Clara", "David", "Emma", "Felix", "Greta", "Hannah", "Jonas", "Julia", "Kai", "Lara", "Leon", "Lena", "Luca", "Marie", "Max", "Mia", "Nils", "Nora", "Ole", "Paula", "Paul", "Sophie", "Tim", "Tom", "Jana", "Lukas", "Sarah", "Finn", "Laura", "Moritz", "Lisa", "Jan", "Katharina", "Tobias", "Selin", "Can", "Aylin", "Mehmet"], "nachnamen": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Braun", "Zimmermann", "Krüger", "Hartmann", "Lange", "Werner", "Krause", "Lehmann", "Köhler", "Herrmann", "Walter", "König", "Mayer", "Huber", "Kaiser", "Peters", "Fuchs", "Scholz", "Möller", "Lorenz", "Yilmaz", "Kaya", "Nowak"]}'::jsonb)
+   set daten = daten || jsonb_build_object('personal', '{"rollen": [{"rolle": "RettSan", "name": "Rettungssanitäter/in", "kurz": "RS", "preis": 500, "gehalt": 0.05}, {"rolle": "NotSan", "name": "Notfallsanitäter/in", "kurz": "NFS", "preis": 1500, "gehalt": 0.08}, {"rolle": "NA", "name": "Notärztin/Notarzt", "kurz": "NA", "preis": 4000, "gehalt": 0.15}], "besatzung": {"KTW": ["RettSan", "RettSan"], "RTW": ["NotSan", "RettSan"], "NEF": ["NA", "NotSan"], "ITW": ["NA", "NotSan", "RettSan"]}, "ersatz": {"RettSan": ["NotSan"]}, "proStellplatz": 3, "stufen": [0, 10, 30, 75, 150], "bonusProStufe": 0.03, "start": ["NotSan", "RettSan"], "vornamen": ["Anna", "Ben", "Clara", "David", "Emma", "Felix", "Greta", "Hannah", "Jonas", "Julia", "Kai", "Lara", "Leon", "Lena", "Luca", "Marie", "Max", "Mia", "Nils", "Nora", "Ole", "Paula", "Paul", "Sophie", "Tim", "Tom", "Jana", "Lukas", "Sarah", "Finn", "Laura", "Moritz", "Lisa", "Jan", "Katharina", "Tobias", "Selin", "Can", "Aylin", "Mehmet"], "nachnamen": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Braun", "Zimmermann", "Krüger", "Hartmann", "Lange", "Werner", "Krause", "Lehmann", "Köhler", "Herrmann", "Walter", "König", "Mayer", "Huber", "Kaiser", "Peters", "Fuchs", "Scholz", "Möller", "Lorenz", "Yilmaz", "Kaya", "Nowak"]}'::jsonb)
  where id = 1 and not (daten ? 'personal');
 
 -- ---------- Spielstand ----------
@@ -886,6 +886,21 @@ begin
     end if;
     update public.wachen set personal_start = true where id = w.id;
   end loop;
+end;
+$$;
+
+-- NEF fährt nur mit NA + NFS (vorher NA + RS). Wer die alte Regel schon hatte,
+-- bekommt einmalig pro NEF kostenlos einen Notfallsanitäter dazu.
+do $$
+declare
+  f record;
+begin
+  if (select daten #> '{personal,besatzung,NEF}' from public.regeln where id = 1) = '["NA", "RettSan"]'::jsonb then
+    update public.regeln set daten = jsonb_set(daten, '{personal,besatzung,NEF}', '["NA", "NotSan"]'::jsonb) where id = 1;
+    for f in select user_id, wache_id from public.fahrzeuge where typ = 'NEF' loop
+      perform public.rc_personal_neu(f.user_id, f.wache_id, '["NotSan"]'::jsonb);
+    end loop;
+  end if;
 end;
 $$;
 

@@ -114,7 +114,7 @@ const CONFIG = {
       {rolle:  "NotSan", name:  "Notfallsanitäter/in", kurz:  "NFS", preis:  1500, gehalt:  0.08},
       {rolle:  "NA", name:  "Notärztin/Notarzt", kurz:  "NA", preis:  4000, gehalt:  0.15},
     ],
-    besatzung: {"KTW": ["RettSan", "RettSan"], "RTW": ["NotSan", "RettSan"], "NEF": ["NA", "RettSan"], "ITW": ["NA", "NotSan", "RettSan"]},
+    besatzung: {"KTW": ["RettSan", "RettSan"], "RTW": ["NotSan", "RettSan"], "NEF": ["NA", "NotSan"], "ITW": ["NA", "NotSan", "RettSan"]},
     ersatz: {"RettSan": ["NotSan"]},
     proStellplatz: 3,
     stufen: [0, 10, 30, 75, 150],

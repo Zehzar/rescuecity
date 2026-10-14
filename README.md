@@ -49,7 +49,7 @@ Der Spielstand wird automatisch im Browser gespeichert.
 
 ## Personal
 - Jede Wache hat Personal: Rettungssanitäter/in (RS), Notfallsanitäter/in (NFS) und Notärztin/Notarzt (NA). Einstellen kostet einmalig Geld, das Gehalt geht als Anteil vom Einsatzlohn ab.
-- Besatzung: KTW = RS + RS, RTW = NFS + RS, NEF = NA + RS, ITW = NA + NFS + RS. NFS dürfen auch als RS fahren. Ohne freie Besatzung kann ein Fahrzeug nicht ausrücken.
+- Besatzung: KTW = RS + RS, RTW = NFS + RS, NEF = NA + NFS, ITW = NA + NFS + RS. NFS dürfen auch als RS fahren. Ohne freie Besatzung kann ein Fahrzeug nicht ausrücken.
 - Mit jedem Einsatz sammelt das Personal Erfahrung (Stufe ★1 bis ★5). Jede Stufe über 1 bringt +3 % auf den Einsatz.
 - Die erste Wache startet mit einem NFS und einem RS. Bestehende Wachen haben beim Umstieg kostenlos Personal für alle Fahrzeuge bekommen.
 - Zahlen ändern: online in der Tabelle `regeln` unter `personal`, ohne Server in `js/config.js`.
