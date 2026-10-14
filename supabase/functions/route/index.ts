@@ -35,10 +35,13 @@ Deno.serve(async (req) => {
   const profil = PROFILE.has(eingabe?.profil) ? eingabe.profil : "driving-car";
   if (!istKoordinate(start) || !istKoordinate(ende)) return antwort(400, { error: "Ungültige Koordinaten" });
 
-  const url =
-    `https://api.openrouteservice.org/v2/directions/${profil}` +
-    `?api_key=${encodeURIComponent(ORS_KEY)}&start=${start.lng},${start.lat}&end=${ende.lng},${ende.lat}`;
-  const ors = await fetch(url);
+  // POST-Variante: "radiuses" lässt ORS bis 5 km weit nach der nächsten Straße suchen,
+  // sonst scheitert die Route, wenn Wache oder Einsatzort mitten im Feld oder Wald liegen.
+  const ors = await fetch(`https://api.openrouteservice.org/v2/directions/${profil}/geojson`, {
+    method: "POST",
+    headers: { Authorization: ORS_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ coordinates: [[start.lng, start.lat], [ende.lng, ende.lat]], radiuses: [5000, 5000] }),
+  });
   const text = await ors.text();
   return new Response(text, { status: ors.status, headers: { ...cors, "Content-Type": "application/json" } });
 });
