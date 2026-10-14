@@ -518,6 +518,10 @@ function wacheBauenDialog(latlng) {
       level: 1,
       fahrzeuge: [],
     };
+    if (CONFIG.personal) {
+      w.personal = [];
+      if (p.stationen.length === 0) personalNeu(w, CONFIG.personal.start);
+    }
     p.geld -= kosten;
     p.stationen.push(w);
     speichern();
@@ -577,7 +581,11 @@ function fahrzeugKaufen(w, typ) {
   const t = fahrzeugTyp(typ);
   if (p.geld < t.preis || w.fahrzeuge.length >= wacheLevelInfo(w.level).stellplaetze || w.level < t.abWacheLevel) return;
   if (Online.aktiv) {
-    serverAktion("fahrzeug_kaufen", { p_wache: w.id, p_typ: typ }).then((a) => a && toast(`🚑 Neuer ${t.typ} für ${esc(w.name)} gekauft.`));
+    serverAktion("fahrzeug_kaufen", { p_wache: w.id, p_typ: typ }).then((a) => {
+      if (!a) return;
+      toast(`🚑 Neuer ${t.typ} für ${esc(w.name)} gekauft.`);
+      personalHinweis(wacheNachId(w.id), typ);
+    });
     return;
   }
   p.geld -= t.preis;
@@ -585,22 +593,192 @@ function fahrzeugKaufen(w, typ) {
   w.fahrzeuge.push({ id: id(), typ, nr, einsatz: null });
   speichern();
   toast(`🚑 Neuer ${t.typ} für ${esc(w.name)} gekauft.`);
+  personalHinweis(w, typ);
   allesNeuZeichnen();
 }
 
-function einsatzBelohnung(typ, dauerKey, transport = false) {
+// Nach dem Kauf: Hinweis, wenn für das neue Fahrzeug niemand frei ist
+function personalHinweis(w, typ) {
+  if (!w || !personalAktiv(spieler())) return;
+  const b = besatzungWaehlen(w, typ);
+  if (b.fehlt.length) toast(`👥 Für den ${typ} fehlt noch Personal: ${esc(fehltText(b.fehlt))}. Stelle es unten bei „Personal“ ein.`);
+}
+
+// ---------- Personal ----------
+// Online kommt das Personal vom Server; fehlt es dort noch (setup.sql nicht neu ausgeführt), bleibt alles wie bisher
+const personalAktiv = (p) => !!(CONFIG.personal && p && p.stationen.every((w) => Array.isArray(w.personal)));
+const rolleInfo = (r) => CONFIG.personal.rollen.find((x) => x.rolle === r) || { rolle: r, name: r, kurz: r, preis: 0, gehalt: 0 };
+const stufeVon = (n) => Math.max(1, CONFIG.personal.stufen.filter((s) => s <= n).length);
+const sterne = (st) => "★".repeat(st) + "☆".repeat(Math.max(CONFIG.personal.stufen.length - st, 0));
+const personalPlaetze = (w) => wacheLevelInfo(w.level).stellplaetze * (CONFIG.personal.proStellplatz || 3);
+const wacheNachId = (wid) => spieler().stationen.find((s) => s.id === wid);
+let einstellenOffen = false;
+
+// Wer gerade im Einsatz ist: Personal-ID -> Fahrzeug
+function personalImEinsatz(w) {
+  const belegt = new Map();
+  w.fahrzeuge.forEach((f) => f.einsatz && (f.einsatz.crew || []).forEach((pid) => belegt.set(pid, f)));
+  return belegt;
+}
+
+// Gleiche Regeln wie auf dem Server: zuerst passende Qualifikation, dann Ersatz, Erfahrene zuerst
+function besatzungWaehlen(w, typ) {
+  const belegt = personalImEinsatz(w);
+  const frei = w.personal.filter((x) => !belegt.has(x.id)).sort((a, b) => b.einsaetze - a.einsaetze);
+  const crew = [];
+  const offen = [];
+  const fehlt = [];
+  (CONFIG.personal.besatzung[typ] || []).forEach((r) => {
+    const x = frei.find((x) => x.rolle === r && !crew.includes(x));
+    x ? crew.push(x) : offen.push(r);
+  });
+  offen.forEach((r) => {
+    const ersatz = (CONFIG.personal.ersatz || {})[r] || [];
+    const x = frei.find((x) => ersatz.includes(x.rolle) && !crew.includes(x));
+    x ? crew.push(x) : fehlt.push(r);
+  });
+  return { crew, fehlt };
+}
+
+const fehltText = (fehlt) =>
+  [...new Set(fehlt)].map((r) => { const n = fehlt.filter((x) => x === r).length; return `${n > 1 ? n + "× " : ""}${rolleInfo(r).name}`; }).join(", ");
+const besatzungText = (typ) => (CONFIG.personal.besatzung[typ] || []).map((r) => rolleInfo(r).kurz).join(" + ");
+
+function zufallsName() {
+  return `${zufall(CONFIG.personal.vornamen)} ${zufall(CONFIG.personal.nachnamen)}`;
+}
+
+function personalNeu(w, rollen) {
+  (rollen || []).forEach((rolle) => w.personal.push({ id: id(), rolle, name: zufallsName(), einsaetze: 0 }));
+}
+
+// Ohne Server: alte Spielstände bekommen einmalig die Besatzung für ihre Fahrzeuge
+function personalLokalVorbereiten() {
+  const p = spieler();
+  if (Online.aktiv || !CONFIG.personal || !p) return;
+  let geaendert = false;
+  p.stationen.forEach((w, i) => {
+    if (Array.isArray(w.personal)) return;
+    w.personal = [];
+    w.fahrzeuge.forEach((f) => personalNeu(w, CONFIG.personal.besatzung[f.typ]));
+    if (i === 0 && !w.fahrzeuge.length) personalNeu(w, CONFIG.personal.start);
+    geaendert = true;
+  });
+  if (geaendert) speichern();
+}
+
+function personalEinstellen(w, rolle) {
+  const p = spieler();
+  const r = rolleInfo(rolle);
+  if (p.geld < r.preis || w.personal.length >= personalPlaetze(w)) return;
+  if (Online.aktiv) {
+    const vorher = new Set(w.personal.map((x) => x.id));
+    serverAktion("personal_einstellen", { p_wache: w.id, p_rolle: rolle }).then((a) => {
+      const neu = a && (wacheNachId(w.id) || { personal: [] }).personal.find((x) => !vorher.has(x.id));
+      if (neu) toast(`👤 ${esc(neu.name)} (${esc(r.name)}) arbeitet jetzt auf ${esc(w.name)}.`);
+    });
+    return;
+  }
+  p.geld -= r.preis;
+  personalNeu(w, [rolle]);
+  const neu = w.personal[w.personal.length - 1];
+  speichern();
+  toast(`👤 ${esc(neu.name)} (${esc(r.name)}) arbeitet jetzt auf ${esc(w.name)}.`);
+  allesNeuZeichnen();
+}
+
+function personalEntlassen(w, person) {
+  dialogZeigen(`
+    <h2>${esc(person.name)} entlassen?</h2>
+    <p class="klein">${esc(rolleInfo(person.rolle).name)} · ${zahl(person.einsaetze)} Einsätze. Das Geld fürs Einstellen gibt es nicht zurück, die Erfahrung geht verloren.</p>
+    <div class="knoepfe">
+      <button class="btn" id="dlgAbbrechen">Abbrechen</button>
+      <button class="btn primaer" id="dlgEntlassen">Entlassen</button>
+    </div>`);
+  $("#dlgAbbrechen").onclick = dialogSchliessen;
+  $("#dlgEntlassen").onclick = () => {
+    dialogSchliessen();
+    if (Online.aktiv) {
+      serverAktion("personal_entlassen", { p_person: person.id });
+      return;
+    }
+    if (personalImEinsatz(w).has(person.id)) return toast("⚠️ Die Person ist gerade im Einsatz.");
+    w.personal = w.personal.filter((x) => x.id !== person.id);
+    speichern();
+    allesNeuZeichnen();
+  };
+}
+
+function personalHtml(w) {
+  const p = spieler();
+  const belegt = personalImEinsatz(w);
+  const platz = personalPlaetze(w);
+  const voll = w.personal.length >= platz;
+  const liste = w.personal
+    .map((x) => {
+      const r = rolleInfo(x.rolle);
+      const st = stufeVon(x.einsaetze);
+      const f = belegt.get(x.id);
+      return `<div class="person">
+        <span class="rolle-badge rolle-${esc(x.rolle)}" title="${esc(r.name)}">${esc(r.kurz)}</span>
+        <div class="fahrzeug-name"><b>${esc(x.name)}</b>
+          <div class="klein"><span class="sterne" title="Erfahrungsstufe ${st}">${sterne(st)}</span> · ${zahl(x.einsaetze)} Einsätze · ${f ? `🚨 auf ${esc(fahrzeugName(f))}` : "frei"}</div></div>
+        <button class="btn klein umbenennen" data-entlassen="${x.id}" ${f ? "disabled" : ""} title="Entlassen">✖</button>
+      </div>`;
+    })
+    .join("");
+  const einstellen = CONFIG.personal.rollen
+    .map(
+      (r) => `<div class="kauf-zeile">
+        <div><span class="rolle-badge rolle-${esc(r.rolle)}">${esc(r.kurz)}</span> ${esc(r.name)}
+          <div class="klein">Gehalt: ${Math.round(r.gehalt * 100)} % vom Einsatzlohn</div></div>
+        <button class="btn klein" data-einstellen="${esc(r.rolle)}" ${voll || p.geld < r.preis ? "disabled" : ""}>💶 ${zahl(r.preis)}</button>
+      </div>`
+    )
+    .join("");
+  const ersatz = Object.entries(CONFIG.personal.ersatz || {})
+    .map(([r, liste]) => `${liste.map((x) => rolleInfo(x).kurz).join("/")} dürfen auch als ${rolleInfo(r).kurz} fahren.`)
+    .join(" ");
+  return `
+    <h3>Personal <span class="klein">(${w.personal.length}/${platz} Plätze)</span></h3>
+    ${liste || '<p class="klein">Noch kein Personal. Ohne Besatzung können die Fahrzeuge nicht ausrücken.</p>'}
+    <details class="einstellen" id="einstellenBox" ${einstellenOffen || !w.personal.length ? "open" : ""}>
+      <summary>👤 Personal einstellen ${voll ? '<span class="klein">(kein Platz mehr, Wache ausbauen)</span>' : ""}</summary>
+      ${einstellen}
+      <p class="klein">Besatzung: ${CONFIG.fahrzeuge.map((t) => `${t.typ} = ${besatzungText(t.typ)}`).join(" · ")}. ${ersatz}
+        Jede Erfahrungsstufe über ★ bringt +${Math.round((CONFIG.personal.bonusProStufe || 0) * 100)} % auf den Einsatz.</p>
+    </details>`;
+}
+
+function einsatzBelohnung(typ, dauerKey, transport = false, crew = null) {
   const t = fahrzeugTyp(typ);
   const d = dauerInfo(dauerKey);
   const faktor = t.faktor * (transport && CONFIG.transport ? 1 + CONFIG.transport.bonus : 1);
+  // Erfahrung macht die Besatzung besser, das Gehalt geht vom Lohn ab (wie auf dem Server)
+  let erfahrung = 1;
+  let netto = 1;
+  if (crew && CONFIG.personal) {
+    erfahrung = 1 + crew.reduce((n, x) => n + stufeVon(x.einsaetze) - 1, 0) * (CONFIG.personal.bonusProStufe || 0);
+    netto = Math.max(1 - crew.reduce((n, x) => n + rolleInfo(x.rolle).gehalt, 0), 0);
+  }
   return {
-    geld: Math.round(d.minuten * d.proMinute * faktor),
-    xp: Math.round(d.minuten * d.xpProMinute * faktor),
+    geld: Math.round(d.minuten * d.proMinute * faktor * erfahrung * netto),
+    xp: Math.round(d.minuten * d.xpProMinute * faktor * erfahrung),
   };
 }
 
 async function einsatzStarten(fahrzeug, dauerKey) {
   const d = dauerInfo(dauerKey);
   const w = wacheVon(fahrzeug);
+  const mitPersonal = personalAktiv(spieler());
+  if (mitPersonal) {
+    const b = besatzungWaehlen(w, fahrzeug.typ);
+    if (b.fehlt.length) {
+      toast(`⚠️ Nicht genug freies Personal. Es fehlt: ${esc(fehltText(b.fehlt))}`);
+      allesNeuZeichnen();
+      return;
+    }
+  }
   const { ziel, route } = await zielMitRoute(w, d.minuten);
   if (fahrzeug.einsatz) return; // zwischenzeitlich schon losgeschickt
   const stichwort = zufall(CONFIG.stichworte[fahrzeug.typ] || ["Einsatz"]);
@@ -618,8 +796,18 @@ async function einsatzStarten(fahrzeug, dauerKey) {
     }
     return;
   }
+  let crew = null;
+  if (mitPersonal) {
+    const b = besatzungWaehlen(w, fahrzeug.typ); // neu prüfen, während der Routensuche kann sich etwas geändert haben
+    if (b.fehlt.length) {
+      toast(`⚠️ Nicht genug freies Personal. Es fehlt: ${esc(fehltText(b.fehlt))}`);
+      allesNeuZeichnen();
+      return;
+    }
+    crew = b.crew;
+  }
   const transport = !!kh && Math.random() < transportChance(fahrzeug.typ);
-  const b = einsatzBelohnung(fahrzeug.typ, dauerKey, transport);
+  const b = einsatzBelohnung(fahrzeug.typ, dauerKey, transport, crew);
   const start = Date.now();
   fahrzeug.einsatz = {
     stichwort,
@@ -633,6 +821,7 @@ async function einsatzStarten(fahrzeug, dauerKey) {
     ende: start + (d.minuten * 60000) / CONFIG.zeitFaktor,
     geld: b.geld,
     xp: b.xp,
+    crew: crew ? crew.map((x) => x.id) : null,
   };
   if (transport) Object.assign(fahrzeug.einsatz, await transportRouten(w, fahrzeug.einsatz));
   speichern();
@@ -876,6 +1065,10 @@ function einsaetzePruefen() {
         punkteGeben(f.einsatz.geld, f.einsatz.xp, "einsatz");
         p.stats.einsaetze++;
         if (f.einsatz.kh) p.stats.transporte = (p.stats.transporte || 0) + 1;
+        (f.einsatz.crew || []).forEach((pid) => {
+          const x = (w.personal || []).find((x) => x.id === pid);
+          if (x) x.einsaetze++;
+        });
         toast(`✅ ${esc(fahrzeugName(f))} (${esc(w.name)}) ist zurück auf der Wache (Status 2): +💶 ${zahl(f.einsatz.geld)} · +⭐ ${zahl(f.einsatz.xp)}`);
         f.einsatz = null;
         geaendert = true;
@@ -924,8 +1117,10 @@ function fahrzeugUmbenennen(f) {
   };
 }
 
-function fahrzeugHtml(f) {
+function fahrzeugHtml(f, w) {
   const t = fahrzeugTyp(f.typ);
+  const mitPersonal = personalAktiv(spieler());
+  const crewName = (x) => `${esc(x.name)} (${esc(rolleInfo(x.rolle).kurz)} ★${stufeVon(x.einsaetze)})`;
   let inhalt;
   if (f.einsatz) {
     const d = dauerInfo(f.einsatz.dauerKey);
@@ -934,11 +1129,18 @@ function fahrzeugHtml(f) {
       <div class="fahrzeug-status"><span class="status-punkt" data-fms="${f.id}"></span></div>
       <div class="fortschritt"><div data-start="${f.einsatz.start}" data-ende="${f.einsatz.ende}"></div></div>
       ${f.einsatz.kh ? `<div class="klein" style="margin-top:4px">🏥 Transport: ${esc(f.einsatz.kh.name)}</div>` : ""}
+      ${
+        mitPersonal && f.einsatz.crew && f.einsatz.crew.length
+          ? `<div class="klein" style="margin-top:4px">👥 ${f.einsatz.crew.map((pid) => w.personal.find((x) => x.id === pid)).filter(Boolean).map(crewName).join(", ")}</div>`
+          : ""
+      }
       <div class="klein" style="margin-top:4px">Belohnung: 💶 ${zahl(f.einsatz.geld)} · ⭐ ${zahl(f.einsatz.xp)}</div>`;
   } else {
+    const besatzung = mitPersonal ? besatzungWaehlen(w, f.typ) : null;
+    const fehlt = besatzung && besatzung.fehlt.length > 0;
     const optionen = CONFIG.einsatzDauern
       .map((d) => {
-        const b = einsatzBelohnung(f.typ, d.key);
+        const b = einsatzBelohnung(f.typ, d.key, false, besatzung && !fehlt ? besatzung.crew : null);
         return `<option value="${d.key}">${d.name} → 💶 ${zahl(b.geld)} · ⭐ ${zahl(b.xp)}</option>`;
       })
       .join("");
@@ -946,8 +1148,15 @@ function fahrzeugHtml(f) {
       <div class="fahrzeug-status"><span class="status-punkt" style="--sf:${STATUS[2].farbe}">${STATUS[2].text}</span></div>
       <div class="einsatz-wahl">
         <select data-dauer="${f.id}">${optionen}</select>
-        <button class="btn primaer klein" data-losschicken="${f.id}">Losschicken</button>
+        <button class="btn primaer klein" data-losschicken="${f.id}" ${fehlt ? "disabled" : ""}>Losschicken</button>
       </div>
+      ${
+        !besatzung
+          ? ""
+          : fehlt
+          ? `<div class="personal-fehlt">⚠️ Besatzung ${esc(besatzungText(f.typ))}: es fehlt ${esc(fehltText(besatzung.fehlt))}</div>`
+          : `<div class="klein" style="margin-top:4px">👥 ${besatzung.crew.map(crewName).join(", ")}</div>`
+      }
       ${
         transportChance(f.typ) > 0 && krankenhausListe.length
           ? `<div class="klein" style="margin-top:4px">🏥 ${transportChance(f.typ) >= 1 ? "Immer" : `In ${Math.round(transportChance(f.typ) * 100)} % der Einsätze`} mit Transport ins Krankenhaus: +${Math.round(CONFIG.transport.bonus * 100)} %</div>`
@@ -993,7 +1202,7 @@ function seitenleisteZeichnen() {
           .map((s) => {
             const frei = s.fahrzeuge.filter((f) => !f.einsatz).length;
             return `<div class="wache-eintrag" data-wache="${s.id}">
-              <div><b>${esc(s.name)}</b><div class="klein">Level ${s.level} · ${s.fahrzeuge.length}/${wacheLevelInfo(s.level).stellplaetze} Fahrzeuge · ${frei} frei</div></div>
+              <div><b>${esc(s.name)}</b><div class="klein">Level ${s.level} · ${s.fahrzeuge.length}/${wacheLevelInfo(s.level).stellplaetze} Fahrzeuge · ${frei} frei${personalAktiv(p) ? ` · 👥 ${s.personal.length}` : ""}</div></div>
               <span>›</span></div>`;
           })
           .join("") || '<p class="klein">Noch keine Wachen gebaut.</p>'
@@ -1040,7 +1249,8 @@ function seitenleisteZeichnen() {
         : `<div class="info-box">🏆 Maximales Level erreicht.</div>`
     }
     <h3>Fahrzeuge</h3>
-    ${w.fahrzeuge.map(fahrzeugHtml).join("") || '<p class="klein">Noch keine Fahrzeuge. Kaufe unten dein erstes Fahrzeug.</p>'}
+    ${w.fahrzeuge.map((f) => fahrzeugHtml(f, w)).join("") || '<p class="klein">Noch keine Fahrzeuge. Kaufe unten dein erstes Fahrzeug.</p>'}
+    ${personalAktiv(p) ? personalHtml(w) : ""}
     <h3>Fahrzeug kaufen ${voll ? '<span class="klein">(Wache voll)</span>' : ""}</h3>
     ${kaufListe}`;
 
@@ -1050,6 +1260,11 @@ function seitenleisteZeichnen() {
   };
   if ($("#upgradeBtn")) $("#upgradeBtn").onclick = () => wacheUpgrade(w);
   el.querySelectorAll("[data-kaufen]").forEach((b) => (b.onclick = () => fahrzeugKaufen(w, b.dataset.kaufen)));
+  el.querySelectorAll("[data-einstellen]").forEach((b) => (b.onclick = () => personalEinstellen(w, b.dataset.einstellen)));
+  el.querySelectorAll("[data-entlassen]").forEach((b) => {
+    b.onclick = () => personalEntlassen(w, w.personal.find((x) => x.id === b.dataset.entlassen));
+  });
+  if ($("#einstellenBox")) $("#einstellenBox").ontoggle = (e) => (einstellenOffen = e.target.open);
   el.querySelectorAll("[data-umbenennen]").forEach((b) => {
     b.onclick = () => fahrzeugUmbenennen(w.fahrzeuge.find((x) => x.id === b.dataset.umbenennen));
   });
@@ -1325,6 +1540,7 @@ function bereichZeigen(ziel) {
 }
 
 function allesNeuZeichnen() {
+  personalLokalVorbereiten();
   if (!Online.aktiv) erfolgePruefenLokal();
   kopfAktualisieren();
   markerZeichnen();

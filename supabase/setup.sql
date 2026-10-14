@@ -87,6 +87,11 @@ update public.regeln
 update public.regeln
    set daten = daten || jsonb_build_object('erfolge', '[{"key": "erste_wache", "name": "Grundstein", "text": "Baue deine erste Rettungswache", "symbol": "🏠", "wert": "wachen", "ziel": 1, "geld": 250, "xp": 25}, {"key": "wachen_3", "name": "Rettungsdienstbereich", "text": "Besitze 3 Rettungswachen", "symbol": "🗺️", "wert": "wachen", "ziel": 3, "geld": 1500, "xp": 100}, {"key": "wachen_10", "name": "Kreisleitstelle", "text": "Besitze 10 Rettungswachen", "symbol": "🏢", "wert": "wachen", "ziel": 10, "geld": 10000, "xp": 500}, {"key": "wache_lvl3", "name": "Ausgebaut", "text": "Baue eine Wache auf Level 3 aus", "symbol": "🔧", "wert": "wacheLevel", "ziel": 3, "geld": 1500, "xp": 100}, {"key": "wache_lvl5", "name": "Lehrrettungswache", "text": "Baue eine Wache auf Level 5 aus", "symbol": "🏆", "wert": "wacheLevel", "ziel": 5, "geld": 6000, "xp": 300}, {"key": "fahrzeuge_5", "name": "Fuhrpark", "text": "Besitze 5 Fahrzeuge", "symbol": "🚑", "wert": "fahrzeuge", "ziel": 5, "geld": 1500, "xp": 100}, {"key": "fahrzeuge_20", "name": "Großer Fuhrpark", "text": "Besitze 20 Fahrzeuge", "symbol": "🚒", "wert": "fahrzeuge", "ziel": 20, "geld": 8000, "xp": 400}, {"key": "einsatz_1", "name": "Erster Einsatz", "text": "Schließe deinen ersten Einsatz ab", "symbol": "🚨", "wert": "einsaetze", "ziel": 1, "geld": 250, "xp": 25}, {"key": "einsatz_10", "name": "Eingespielt", "text": "Schließe 10 Einsätze ab", "symbol": "⏱️", "wert": "einsaetze", "ziel": 10, "geld": 750, "xp": 50}, {"key": "einsatz_100", "name": "Routinier", "text": "Schließe 100 Einsätze ab", "symbol": "🎖️", "wert": "einsaetze", "ziel": 100, "geld": 4000, "xp": 250}, {"key": "einsatz_1000", "name": "Legende der Leitstelle", "text": "Schließe 1.000 Einsätze ab", "symbol": "👑", "wert": "einsaetze", "ziel": 1000, "geld": 25000, "xp": 1500}, {"key": "transport_10", "name": "Patientenbringer", "text": "Bringe 10 Patienten ins Krankenhaus", "symbol": "🏥", "wert": "transporte", "ziel": 10, "geld": 1000, "xp": 75}, {"key": "transport_100", "name": "Klinik-Stammgast", "text": "Bringe 100 Patienten ins Krankenhaus", "symbol": "💉", "wert": "transporte", "ziel": 100, "geld": 6000, "xp": 300}, {"key": "quiz_10", "name": "Wissbegierig", "text": "Beantworte 10 Quizfragen richtig", "symbol": "📘", "wert": "quizRichtig", "ziel": 10, "geld": 500, "xp": 50}, {"key": "quiz_100", "name": "Wandelndes Lehrbuch", "text": "Beantworte 100 Quizfragen richtig", "symbol": "🎓", "wert": "quizRichtig", "ziel": 100, "geld": 4000, "xp": 250}, {"key": "quiz_folge_10", "name": "Fehlerfrei", "text": "Beantworte 10 Quizfragen in Folge richtig", "symbol": "🎯", "wert": "quizFolge", "ziel": 10, "geld": 1500, "xp": 100}, {"key": "serie_7", "name": "Eine Woche dabei", "text": "Hol dir 7 Tage am Stück die tägliche Belohnung", "symbol": "📅", "wert": "serie", "ziel": 7, "geld": 1500, "xp": 100}, {"key": "serie_30", "name": "Treue Seele", "text": "Hol dir 30 Tage am Stück die tägliche Belohnung", "symbol": "❤️", "wert": "serie", "ziel": 30, "geld": 10000, "xp": 500}, {"key": "punkte_8100", "name": "Aufsteiger", "text": "Erreiche Spieler-Level 10", "symbol": "⭐", "wert": "xp", "ziel": 8100, "geld": 3000, "xp": 0}, {"key": "punkte_57600", "name": "Ass im Rettungsdienst", "text": "Erreiche Spieler-Level 25", "symbol": "🌟", "wert": "xp", "ziel": 57600, "geld": 15000, "xp": 0}]'::jsonb)
  where id = 1 and not (daten ? 'erfolge');
+-- Personal: Preis = einmalige Einstellung, gehalt = Anteil am Einsatzlohn, besatzung = wer auf welchem Fahrzeug fährt,
+-- ersatz = wer einen Platz auch besetzen darf, stufen = Einsätze für Erfahrungsstufe 1 bis 5, bonusProStufe = Aufschlag je Stufe über 1
+update public.regeln
+   set daten = daten || jsonb_build_object('personal', '{"rollen": [{"rolle": "RettSan", "name": "Rettungssanitäter/in", "kurz": "RS", "preis": 500, "gehalt": 0.05}, {"rolle": "NotSan", "name": "Notfallsanitäter/in", "kurz": "NFS", "preis": 1500, "gehalt": 0.08}, {"rolle": "NA", "name": "Notärztin/Notarzt", "kurz": "NA", "preis": 4000, "gehalt": 0.15}], "besatzung": {"KTW": ["RettSan", "RettSan"], "RTW": ["NotSan", "RettSan"], "NEF": ["NA", "RettSan"], "ITW": ["NA", "NotSan", "RettSan"]}, "ersatz": {"RettSan": ["NotSan"]}, "proStellplatz": 3, "stufen": [0, 10, 30, 75, 150], "bonusProStufe": 0.03, "start": ["NotSan", "RettSan"], "vornamen": ["Anna", "Ben", "Clara", "David", "Emma", "Felix", "Greta", "Hannah", "Jonas", "Julia", "Kai", "Lara", "Leon", "Lena", "Luca", "Marie", "Max", "Mia", "Nils", "Nora", "Ole", "Paula", "Paul", "Sophie", "Tim", "Tom", "Jana", "Lukas", "Sarah", "Finn", "Laura", "Moritz", "Lisa", "Jan", "Katharina", "Tobias", "Selin", "Can", "Aylin", "Mehmet"], "nachnamen": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Braun", "Zimmermann", "Krüger", "Hartmann", "Lange", "Werner", "Krause", "Lehmann", "Köhler", "Herrmann", "Walter", "König", "Mayer", "Huber", "Kaiser", "Peters", "Fuchs", "Scholz", "Möller", "Lorenz", "Yilmaz", "Kaya", "Nowak"]}'::jsonb)
+ where id = 1 and not (daten ? 'personal');
 
 -- ---------- Spielstand ----------
 create table if not exists public.spieler_stand (
@@ -151,6 +156,22 @@ alter table public.fahrzeuge add column if not exists e_kh jsonb;
 alter table public.fahrzeuge add column if not exists e_route_kh jsonb;
 alter table public.fahrzeuge add column if not exists e_route_heim jsonb;
 create index if not exists fahrzeuge_wache on public.fahrzeuge (wache_id);
+-- Besatzung im laufenden Einsatz (Liste von Personal-IDs)
+alter table public.fahrzeuge add column if not exists e_crew jsonb;
+
+-- Personal einer Wache
+create table if not exists public.personal (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  wache_id uuid not null references public.wachen (id) on delete cascade,
+  rolle text not null,
+  name text not null check (char_length(name) between 1 and 40),
+  einsaetze int not null default 0,
+  erstellt timestamptz not null default clock_timestamp()
+);
+create index if not exists personal_wache on public.personal (wache_id);
+-- true, sobald die Wache ihr Startpersonal bekommen hat (bestehende Wachen bekommen es einmalig unten)
+alter table public.wachen add column if not exists personal_start boolean not null default false;
 
 -- ---------- Quiz ----------
 -- Neue Fragen: Table Editor > fragen > Insert row.
@@ -202,6 +223,7 @@ alter table public.regeln enable row level security;
 alter table public.spieler_stand enable row level security;
 alter table public.wachen enable row level security;
 alter table public.fahrzeuge enable row level security;
+alter table public.personal enable row level security;
 alter table public.fragen enable row level security;
 alter table public.quiz_offen enable row level security;
 alter table public.quiz_beantwortet enable row level security;
@@ -250,8 +272,12 @@ begin
   where f.user_id = uid and f.e_ende <= now();
 
   if n > 0 then
+    -- Erfahrung: jede Person der Besatzung zählt einen Einsatz mehr
+    update public.personal p set einsaetze = p.einsaetze + 1
+     where p.user_id = uid and exists (select 1 from public.fahrzeuge f
+       where f.user_id = uid and f.e_ende <= now() and f.e_crew ? p.id::text);
     update public.fahrzeuge
-       set e_dauer = null, e_start = null, e_ende = null, e_stichwort = null,
+       set e_crew = null, e_dauer = null, e_start = null, e_ende = null, e_stichwort = null,
            e_ziel = null, e_route = null, e_geld = null, e_xp = null,
            e_kh = null, e_route_kh = null, e_route_heim = null
      where user_id = uid and e_ende <= now();
@@ -313,6 +339,73 @@ begin
 end;
 $$;
 
+-- ---------- Personal ----------
+-- Erfahrungsstufe 1 bis 5 aus der Zahl der Einsätze
+create or replace function public.rc_stufe(n int)
+returns int language sql stable security definer set search_path = public as $$
+  select greatest(1, (select count(*)::int from jsonb_array_elements_text(public.rc_regeln() -> 'personal' -> 'stufen') x
+                      where x::int <= n));
+$$;
+
+create or replace function public.rc_zufallsname()
+returns text language sql volatile security definer set search_path = public as $$
+  select (pr -> 'vornamen' ->> floor(random() * jsonb_array_length(pr -> 'vornamen'))::int) || ' ' ||
+         (pr -> 'nachnamen' ->> floor(random() * jsonb_array_length(pr -> 'nachnamen'))::int)
+  from (select public.rc_regeln() -> 'personal' as pr) r;
+$$;
+
+create or replace function public.rc_personal_neu(uid uuid, wache uuid, rollen jsonb)
+returns void language sql volatile security definer set search_path = public as $$
+  insert into public.personal (user_id, wache_id, rolle, name)
+  select uid, wache, x, public.rc_zufallsname() from jsonb_array_elements_text(coalesce(rollen, '[]'::jsonb)) x;
+$$;
+
+-- Freie Besatzung für ein Fahrzeug suchen: zuerst die passende Qualifikation, dann Ersatz (z. B. NotSan statt RettSan).
+-- Erfahrene Kräfte zuerst. Gibt eine Liste von Personal-IDs zurück, null wenn es kein Personal-System gibt.
+create or replace function public.rc_besatzung(p_wache uuid, p_typ text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  pr jsonb := public.rc_regeln() -> 'personal';
+  plaetze text[];
+  offen text[] := '{}';
+  fehlt text[] := '{}';
+  gewaehlt uuid[] := '{}';
+  v_rolle text;
+  pid uuid;
+begin
+  if pr is null then
+    return null;
+  end if;
+  select array_agg(x) into plaetze from jsonb_array_elements_text(pr -> 'besatzung' -> p_typ) x;
+  if plaetze is null then
+    return '[]'::jsonb;
+  end if;
+  foreach v_rolle in array plaetze loop
+    select p.id into pid from public.personal p
+     where p.wache_id = p_wache and p.rolle = v_rolle and not (p.id = any (gewaehlt))
+       and not exists (select 1 from public.fahrzeuge f where f.wache_id = p_wache and f.e_ende is not null and f.e_crew ? p.id::text)
+     order by p.einsaetze desc, p.erstellt limit 1;
+    if pid is null then offen := offen || v_rolle; else gewaehlt := gewaehlt || pid; end if;
+  end loop;
+  foreach v_rolle in array offen loop
+    select p.id into pid from public.personal p
+     where p.wache_id = p_wache and not (p.id = any (gewaehlt))
+       and p.rolle in (select jsonb_array_elements_text(coalesce(pr -> 'ersatz' -> v_rolle, '[]'::jsonb)))
+       and not exists (select 1 from public.fahrzeuge f where f.wache_id = p_wache and f.e_ende is not null and f.e_crew ? p.id::text)
+     order by p.einsaetze desc, p.erstellt limit 1;
+    if pid is null then
+      fehlt := fehlt || coalesce((select x ->> 'name' from jsonb_array_elements(pr -> 'rollen') x where x ->> 'rolle' = v_rolle), v_rolle);
+    else
+      gewaehlt := gewaehlt || pid;
+    end if;
+  end loop;
+  if cardinality(fehlt) > 0 then
+    raise exception 'Nicht genug freies Personal auf der Wache. Es fehlt: %', array_to_string(fehlt, ', ');
+  end if;
+  return to_jsonb(gewaehlt);
+end;
+$$;
+
 -- Kompletter Spielstand in der Form, die das Spiel im Browser erwartet
 create or replace function public.rc_stand(uid uuid)
 returns jsonb language sql stable security definer set search_path = public as $$
@@ -341,9 +434,13 @@ returns jsonb language sql stable security definer set search_path = public as $
               'stichwort', f.e_stichwort, 'dauerKey', f.e_dauer,
               'start', public.rc_ms(f.e_start), 'ende', public.rc_ms(f.e_ende),
               'ziel', f.e_ziel, 'route', f.e_route, 'geld', f.e_geld, 'xp', f.e_xp,
-              'kh', f.e_kh, 'routeKh', f.e_route_kh, 'routeHeim', f.e_route_heim) end)
+              'kh', f.e_kh, 'routeKh', f.e_route_kh, 'routeHeim', f.e_route_heim, 'crew', f.e_crew) end)
             order by f.erstellt)
-          from public.fahrzeuge f where f.wache_id = w.id), '[]'::jsonb))
+          from public.fahrzeuge f where f.wache_id = w.id), '[]'::jsonb),
+        'personal', coalesce((
+          select jsonb_agg(jsonb_build_object('id', pe.id, 'rolle', pe.rolle, 'name', pe.name, 'einsaetze', pe.einsaetze)
+            order by pe.erstellt)
+          from public.personal pe where pe.wache_id = w.id), '[]'::jsonb))
         order by w.erstellt)
       from public.wachen w where w.user_id = uid), '[]'::jsonb))
   from public.spieler_stand s
@@ -391,6 +488,8 @@ declare
   s public.spieler_stand;
   fertig jsonb;
   kosten bigint;
+  erste boolean;
+  neu uuid;
 begin
   s := public.rc_sperren(uid);
   fertig := public.rc_abrechnen(uid);
@@ -403,7 +502,13 @@ begin
   if s.geld < kosten then
     raise exception 'Nicht genug Geld';
   end if;
-  insert into public.wachen (user_id, name, lat, lng) values (uid, left(trim(p_name), 40), p_lat, p_lng);
+  erste := not exists (select 1 from public.wachen where user_id = uid);
+  insert into public.wachen (user_id, name, lat, lng, personal_start) values (uid, left(trim(p_name), 40), p_lat, p_lng, true)
+  returning id into neu;
+  -- Startpersonal für die erste Wache, damit das erste Fahrzeug gleich losfahren kann
+  if erste then
+    perform public.rc_personal_neu(uid, neu, r -> 'personal' -> 'start');
+  end if;
   update public.spieler_stand set geld = geld - kosten where user_id = uid;
   return public.rc_antwort(uid, fertig);
 end;
@@ -512,6 +617,9 @@ declare
   minuten numeric;
   transport boolean;
   faktor numeric;
+  crew jsonb;
+  erfahrung numeric := 1;
+  gehalt numeric := 0;
 begin
   perform public.rc_sperren(uid);
   fertig := public.rc_abrechnen(uid);
@@ -528,6 +636,14 @@ begin
   end if;
   select x into t from jsonb_array_elements(r -> 'fahrzeuge') x where x ->> 'typ' = f.typ;
   minuten := (d ->> 'minuten')::numeric;
+  -- Besatzung: erfahrene Kräfte bringen mehr, das Gehalt geht vom Lohn ab
+  crew := public.rc_besatzung(f.wache_id, f.typ);
+  if crew is not null then
+    select 1 + coalesce(sum(public.rc_stufe(p.einsaetze) - 1), 0) * coalesce((r -> 'personal' ->> 'bonusProStufe')::numeric, 0),
+           coalesce(sum((select (x ->> 'gehalt')::numeric from jsonb_array_elements(r -> 'personal' -> 'rollen') x where x ->> 'rolle' = p.rolle)), 0)
+      into erfahrung, gehalt
+    from public.personal p where p.id::text in (select jsonb_array_elements_text(crew));
+  end if;
   transport := coalesce(jsonb_typeof(p_kh) = 'object'
     and jsonb_typeof(p_kh -> 'lat') = 'number' and jsonb_typeof(p_kh -> 'lng') = 'number'
     and random() < coalesce((r -> 'transport' -> 'chance' ->> f.typ)::numeric, 0), false);
@@ -539,8 +655,9 @@ begin
     e_stichwort = left(coalesce(p_stichwort, 'Einsatz'), 60),
     e_ziel = case when jsonb_typeof(p_ziel) = 'object' then p_ziel end,
     e_route = case when jsonb_typeof(p_route) = 'array' and jsonb_array_length(p_route) <= 1000 then p_route end,
-    e_geld = round(minuten * (d ->> 'proMinute')::numeric * faktor),
-    e_xp = round(minuten * (d ->> 'xpProMinute')::numeric * faktor),
+    e_geld = round(minuten * (d ->> 'proMinute')::numeric * faktor * erfahrung * greatest(1 - gehalt, 0)),
+    e_xp = round(minuten * (d ->> 'xpProMinute')::numeric * faktor * erfahrung),
+    e_crew = crew,
     e_kh = case when transport then jsonb_build_object(
       'name', left(coalesce(p_kh ->> 'name', 'Krankenhaus'), 100),
       'lat', (p_kh ->> 'lat')::double precision, 'lng', (p_kh ->> 'lng')::double precision) end,
@@ -692,6 +809,86 @@ begin
 end;
 $$;
 
+-- Personal einstellen: kostet einmalig den Preis der Rolle, Platz je Wache = Stellplätze × proStellplatz
+create or replace function public.personal_einstellen(p_wache uuid, p_rolle text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  r jsonb := public.rc_regeln();
+  s public.spieler_stand;
+  fertig jsonb;
+  w public.wachen;
+  ro jsonb;
+  platz int;
+begin
+  perform public.rc_sperren(uid);
+  fertig := public.rc_abrechnen(uid);
+  select * into s from public.spieler_stand where user_id = uid;
+  select * into w from public.wachen where id = p_wache and user_id = uid;
+  if w.id is null then
+    raise exception 'Wache nicht gefunden';
+  end if;
+  select x into ro from jsonb_array_elements(r -> 'personal' -> 'rollen') x where x ->> 'rolle' = p_rolle;
+  if ro is null then
+    raise exception 'Unbekannte Qualifikation';
+  end if;
+  platz := (r -> 'wachenLevel' -> (w.level - 1) ->> 'stellplaetze')::int * coalesce((r -> 'personal' ->> 'proStellplatz')::int, 3);
+  if (select count(*) from public.personal where wache_id = w.id) >= platz then
+    raise exception 'Kein Platz mehr für Personal auf dieser Wache';
+  end if;
+  if s.geld < (ro ->> 'preis')::bigint then
+    raise exception 'Nicht genug Geld';
+  end if;
+  perform public.rc_personal_neu(uid, w.id, jsonb_build_array(p_rolle));
+  update public.spieler_stand set geld = geld - (ro ->> 'preis')::bigint where user_id = uid;
+  return public.rc_antwort(uid, fertig);
+end;
+$$;
+
+-- Personal entlassen (nicht während eines Einsatzes, kein Geld zurück)
+create or replace function public.personal_entlassen(p_person uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  fertig jsonb;
+begin
+  perform public.rc_sperren(uid);
+  fertig := public.rc_abrechnen(uid);
+  if exists (select 1 from public.fahrzeuge f where f.user_id = uid and f.e_ende is not null and f.e_crew ? p_person::text) then
+    raise exception 'Die Person ist gerade im Einsatz';
+  end if;
+  delete from public.personal where id = p_person and user_id = uid;
+  if not found then
+    raise exception 'Person nicht gefunden';
+  end if;
+  return public.rc_antwort(uid, fertig);
+end;
+$$;
+
+-- Einmalig: bestehende Wachen bekommen kostenlos die Besatzung für ihre Fahrzeuge,
+-- die erste Wache ohne Fahrzeuge das Startpersonal
+do $$
+declare
+  pr jsonb := (select daten -> 'personal' from public.regeln where id = 1);
+  w record;
+  f record;
+begin
+  if pr is null then
+    return;
+  end if;
+  for w in select * from public.wachen where not personal_start loop
+    for f in select typ from public.fahrzeuge where wache_id = w.id loop
+      perform public.rc_personal_neu(w.user_id, w.id, pr -> 'besatzung' -> f.typ);
+    end loop;
+    if not exists (select 1 from public.fahrzeuge where wache_id = w.id)
+       and w.id = (select x.id from public.wachen x where x.user_id = w.user_id order by x.erstellt limit 1) then
+      perform public.rc_personal_neu(w.user_id, w.id, pr -> 'start');
+    end if;
+    update public.wachen set personal_start = true where id = w.id;
+  end loop;
+end;
+$$;
+
 create or replace function public.bestenliste(anzahl int default 100)
 returns table (username text, xp bigint, einsaetze bigint, quiz_richtig bigint)
 language sql stable security definer set search_path = public as $$
@@ -717,16 +914,17 @@ $$;
 -- ---------- Rechte ----------
 -- Interne Hilfsfunktionen sind von außen nicht aufrufbar
 revoke execute on function public.rc_werte(uuid), public.rc_erfolge_pruefen(uuid), public.rc_heute(), public.rc_regeln(), public.rc_sperren(uuid), public.rc_abrechnen(uuid),
-  public.rc_stand(uuid), public.rc_antwort(uuid, jsonb) from public, anon, authenticated;
+  public.rc_stand(uuid), public.rc_antwort(uuid, jsonb), public.rc_stufe(int), public.rc_zufallsname(),
+  public.rc_personal_neu(uuid, uuid, jsonb), public.rc_besatzung(uuid, text) from public, anon, authenticated;
 
 revoke execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
   public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(text), public.quiz_kategorien(), public.quiz_antwort(bigint, int),
-  public.taegliche_belohnung()
+  public.taegliche_belohnung(), public.personal_einstellen(uuid, text), public.personal_entlassen(uuid)
   from public, anon;
 grant execute on function public.spiel_laden(), public.wache_bauen(text, double precision, double precision),
   public.wache_ausbauen(uuid), public.fahrzeug_kaufen(uuid, text), public.fahrzeug_umbenennen(uuid, text),
   public.einsatz_starten(uuid, text, text, jsonb, jsonb, jsonb), public.einsatz_routen(uuid, jsonb, jsonb), public.quiz_runde(text), public.quiz_kategorien(), public.quiz_antwort(bigint, int),
-  public.taegliche_belohnung()
+  public.taegliche_belohnung(), public.personal_einstellen(uuid, text), public.personal_entlassen(uuid)
   to authenticated;
 grant execute on function public.regeln_laden(), public.bestenliste(int) to anon, authenticated;

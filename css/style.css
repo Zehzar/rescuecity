@@ -97,6 +97,16 @@ body {
 .einsatz-wahl select { flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--rand); font-size: 13px; }
 .kauf-zeile { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rand); font-size: 14px; }
 .kauf-zeile:last-child { border-bottom: 0; }
+/* Personal */
+.person { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--rand); }
+.rolle-badge { display: inline-block; min-width: 30px; text-align: center; color: #fff; font-weight: 700; font-size: 11px; padding: 3px 5px; border-radius: 5px; background: #666; }
+.rolle-RettSan { background: #2e7d32; }
+.rolle-NotSan { background: #1565c0; }
+.rolle-NA { background: #c62828; }
+.sterne { color: #e0a000; letter-spacing: 1px; }
+.personal-fehlt { margin-top: 6px; font-size: 13px; color: var(--fehler); }
+details.einstellen { margin-top: 10px; }
+details.einstellen summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 6px 0; }
 .klein { font-size: 13px; color: var(--text2); }
 .info-box { background: var(--akzent-hell); border-radius: 10px; padding: 12px; font-size: 14px; line-height: 1.45; }
 

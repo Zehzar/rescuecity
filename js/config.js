@@ -103,6 +103,27 @@ const CONFIG = {
     { typ: "ITW", name: "Intensivtransportwagen",    preis: 12000, abWacheLevel: 5, faktor: 1.8, farbe: "#7a2bd6" },
   ],
 
+  // Personal: preis = einmalig beim Einstellen, gehalt = Anteil, der vom Einsatzlohn abgeht.
+  // besatzung = wer auf welchem Fahrzeug fährt, ersatz = wer einen Platz auch besetzen darf (NotSan statt RettSan).
+  // stufen = ab wie vielen Einsätzen Erfahrungsstufe 1 bis 5, bonusProStufe = Aufschlag je Stufe über 1.
+  // proStellplatz = Personalplätze je Stellplatz der Wache, start = Personal der ersten Wache.
+  // Online gelten die Werte aus der Supabase-Tabelle regeln.
+  personal: {
+    rollen: [
+      {rolle:  "RettSan", name:  "Rettungssanitäter/in", kurz:  "RS", preis:  500, gehalt:  0.05},
+      {rolle:  "NotSan", name:  "Notfallsanitäter/in", kurz:  "NFS", preis:  1500, gehalt:  0.08},
+      {rolle:  "NA", name:  "Notärztin/Notarzt", kurz:  "NA", preis:  4000, gehalt:  0.15},
+    ],
+    besatzung: {"KTW": ["RettSan", "RettSan"], "RTW": ["NotSan", "RettSan"], "NEF": ["NA", "RettSan"], "ITW": ["NA", "NotSan", "RettSan"]},
+    ersatz: {"RettSan": ["NotSan"]},
+    proStellplatz: 3,
+    stufen: [0, 10, 30, 75, 150],
+    bonusProStufe: 0.03,
+    start: ["NotSan", "RettSan"],
+    vornamen: ["Anna", "Ben", "Clara", "David", "Emma", "Felix", "Greta", "Hannah", "Jonas", "Julia", "Kai", "Lara", "Leon", "Lena", "Luca", "Marie", "Max", "Mia", "Nils", "Nora", "Ole", "Paula", "Paul", "Sophie", "Tim", "Tom", "Jana", "Lukas", "Sarah", "Finn", "Laura", "Moritz", "Lisa", "Jan", "Katharina", "Tobias", "Selin", "Can", "Aylin", "Mehmet"],
+    nachnamen: ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Braun", "Zimmermann", "Krüger", "Hartmann", "Lange", "Werner", "Krause", "Lehmann", "Köhler", "Herrmann", "Walter", "König", "Mayer", "Huber", "Kaiser", "Peters", "Fuchs", "Scholz", "Möller", "Lorenz", "Yilmaz", "Kaya", "Nowak"],
+  },
+
   // Einsatzstichworte (nur zur Anzeige)
   stichworte: {
     KTW: ["Krankentransport", "Dialysefahrt", "Verlegung", "Entlassung nach Hause", "Reha-Transport"],

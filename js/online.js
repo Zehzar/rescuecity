@@ -184,6 +184,7 @@ const Online = (() => {
     if (r.taeglich) CONFIG.taeglich = r.taeglich;
     if (r.erfolge) CONFIG.erfolge = r.erfolge;
     CONFIG.transport = r.transport || null; // fehlt, solange setup.sql noch nicht neu ausgeführt wurde
+    CONFIG.personal = r.personal || null;
   }
 
   // ---------- Start ----------

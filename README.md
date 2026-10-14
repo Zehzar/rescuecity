@@ -47,6 +47,13 @@ Der Spielstand wird automatisch im Browser gespeichert.
 - 20 Erfolge (🏅 oben), z. B. erste Wache, 100 Einsätze, 10 Quizfragen in Folge richtig oder 7 Tage Serie. Jeder bringt einmalig Geld und Punkte.
 - Online prüft und belohnt der Server. Die Liste steht in der Tabelle **regeln** unter `erfolge` (`wert` = welche Zahl zählt, `ziel`, `geld`, `xp`). Mögliche Werte: einsaetze, transporte, quizRichtig, quizFolge, serie, xp, wachen, wacheLevel, fahrzeuge.
 
+## Personal
+- Jede Wache hat Personal: Rettungssanitäter/in (RS), Notfallsanitäter/in (NFS) und Notärztin/Notarzt (NA). Einstellen kostet einmalig Geld, das Gehalt geht als Anteil vom Einsatzlohn ab.
+- Besatzung: KTW = RS + RS, RTW = NFS + RS, NEF = NA + RS, ITW = NA + NFS + RS. NFS dürfen auch als RS fahren. Ohne freie Besatzung kann ein Fahrzeug nicht ausrücken.
+- Mit jedem Einsatz sammelt das Personal Erfahrung (Stufe ★1 bis ★5). Jede Stufe über 1 bringt +3 % auf den Einsatz.
+- Die erste Wache startet mit einem NFS und einem RS. Bestehende Wachen haben beim Umstieg kostenlos Personal für alle Fahrzeuge bekommen.
+- Zahlen ändern: online in der Tabelle `regeln` unter `personal`, ohne Server in `js/config.js`.
+
 ## Online-Version
 - Das Spiel läuft unter https://rescuecity.netlify.app. Netlify holt sich jede Änderung auf GitHub (Zweig `main`) automatisch und stellt sie nach etwa einer Minute online.
 - `impressum.html` und `datenschutz.html` sind unten im Spiel und im Anmeldefenster verlinkt. Wenn neue Dienste dazukommen (z. B. ein eigener Mail-Anbieter), muss die Datenschutzerklärung ergänzt werden.
