@@ -675,6 +675,7 @@ function punkteAusduennen(punkte, max) {
 // Sucht einen Einsatzort, zu dem es eine Straßenroute gibt
 async function zielMitRoute(w, minuten) {
   const umweg = CONFIG.routing.umwegFaktor;
+  let letzterFehler = null;
   for (let versuch = 0; versuch < 4; versuch++) {
     const ziel = zufallsZiel(w, minuten, umweg);
     try {
@@ -684,11 +685,14 @@ async function zielMitRoute(w, minuten) {
       return { ziel: { lat: ende[0], lng: ende[1] }, route };
     } catch (e) {
       // 404 = keine Straße in der Nähe (z. B. Meer, Wald) -> neuer Versuch
+      letzterFehler = e;
       if (e.status === 404) continue;
       toast(`⚠️ Route konnte nicht berechnet werden (${esc(e.message)}). Das Fahrzeug fährt Luftlinie.`);
+      letzterFehler = null;
       break;
     }
   }
+  if (letzterFehler) toast(`⚠️ Keine Straßenroute gefunden (${esc(letzterFehler.message)}). Das Fahrzeug fährt Luftlinie.`);
   if (!(CONFIG.routing.orsKey || "").trim() && !(Online.aktiv && CONFIG.routing.ueberServer) && !routingHinweisGezeigt) {
     routingHinweisGezeigt = true;
     toast("🛣️ Für Fahrten auf Straßen einen OpenRouteService-Key in js/config.js eintragen.");

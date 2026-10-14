@@ -157,7 +157,13 @@ const Online = (() => {
     const { data, error } = await sb.functions.invoke(name, { body });
     if (error) {
       const status = error.context && error.context.status;
-      const e = new Error(status ? `Server-Funktion ${name}: Fehler ${status}` : fehlerText(error));
+      // Genauere Meldung aus der Antwort lesen (z. B. von OpenRouteService)
+      let grund = "";
+      try {
+        const d = await error.context.json();
+        grund = (d && d.error && (d.error.message || (typeof d.error === "string" && d.error))) || "";
+      } catch (_) {}
+      const e = new Error(status ? `Server-Funktion ${name}: Fehler ${status}${grund ? ` (${grund})` : ""}` : fehlerText(error));
       e.status = status;
       throw e;
     }
